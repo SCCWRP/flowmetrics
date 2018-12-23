@@ -1,12 +1,20 @@
-#prep data frame for clustering stream reaches based on anthropogenic modification
+#######
+# prep data frame for clustering stream reaches based on anthropogenic modification
+# we are not modelling flow metrics on streams that are modified (e.g., dominated by urban land use, dams present, etc.)
 
-dam<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/Dams_Region18.csv")
-impervious<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/ImperviousSurfaces2011_CA.csv")
-nlcd2011<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/NLCD2011_Region18.csv")
-roadden<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/RoadDensity_Region18.csv")
-
+library(tidyverse)
 library(sf)
-NHDplus<-st_read("C:/Users/JennyT/Documents/LitReview/RB4/WorkingData_3-16-18/NHDFlowline_Clip_NAD1983_UTMzone11.shp")
+library(caret)
+
+# streamcat and NHD data
+dam<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/Dams_Region18.csv")
+impervious<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/ImperviousSurfaces2011_CA.csv")
+nlcd2011<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/NLCD2011_Region18.csv")
+roadden<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/RoadDensity_Region18.csv")
+NHDplus<-st_read("//172.16.1.5/Data/MarcusBeck/FromJenny/NHDFlowline_Clip_NAD1983_UTMzone11.shp") %>% 
+  st_zm() # drops z geometry
+
+# merge streamcat with nhdplus geometry
 NHD_dam<-merge(NHDplus,dam, by="COMID")
 NHD_dam<-select(NHD_dam, "COMID", "CatAreaSqKm", "WsAreaSqKm", "DamDensWs", "DamNrmStorWs", "geometry")
 NHD_dam_imperv<-merge(NHD_dam, impervious, by="COMID")
@@ -23,20 +31,7 @@ NHD_StreamCat<-select(NHD_dam_imperv_nldc2011_roadDen, -CatAreaSqKm.x, -WsAreaSq
 
 ############################################################
 
-#Prepping for clustering based on percentage of urban development in the catchment.
-dat<-data.frame(NHD_StreamCat)
-#exploring data
-plot(dat$DamDensWs, dat$DamNrmStorWs)
-plot(dat$PctImp2011Cat, dat$RdDensCat, pch=19)
-plot(dat$PctImp2011Cat, dat$PctUrbHi2011Cat, pch=19)
-plot(dat$PctImp2011Cat, dat$PctUrbMd2011Cat, pch=19)
-plot(dat$PctImp2011Cat, dat$PctUrbLo2011Cat, pch=19)
-plot(dat$PctImp2011Cat, dat$PctUrbOp2011Cat, pch=19)
-plot(dat$RdDensCat,dat$PctUrbHi2011Cat, pch=19)
-plot(dat$RdDensCat, dat$PctImp2011Cat, pch=19)
-
-library(dplyr)
-#prepping df
+# prepping df and clustering
 
 distanceMatric<-dist(dat[,4:7], method = "euclidean", diag = FALSE, upper=FALSE)
 clusters<-hclust(distanceMatric)
@@ -55,27 +50,24 @@ dat2$dam[dat2$DamDensWs>0]<-1
 plot(dat2["dam"], main="Stream Catorgorized by Dam Presence in Watershed")
 
 #write shapefile to folder
-setwd("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat")
-st_write(dat2, "COMID clustering.shp")
+# st_write(dat2, "//172.16.1.5/Data/MarcusBeck/FromJenny/COMID clustering.shp")
 
 
 
 ###################################################################################################
-library(caret)
-library(dplyr)
 
 #Prep data for random forest prediction of stream metrics
 #in this step I merged the NHDflowline data with the stream cat csv's below. after each merge, 
 #some variables were removed either because they were repetitive, or because they did not have any 
 #variation - this was the first step in narrowing down the variables for the random forest
 
-elevation<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/Elevation_Region18.csv")
-GeoChem<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/GeoChemPhys3_Region18.csv")
-lithology<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/Lithology_Region18.csv")
-prism<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/PRISM_1981_2010_Region18.csv")
-runoff<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/Runoff_Region18.csv")
-statsgo<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/STATSGO_Set2_Region18.csv")
-nlcd2011<-read.csv("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat/NLCD2011_Region18.csv")
+elevation<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/Elevation_Region18.csv")
+GeoChem<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/GeoChemPhys3_Region18.csv")
+lithology<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/Lithology_Region18.csv")
+prism<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/PRISM_1981_2010_Region18.csv")
+runoff<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/Runoff_Region18.csv")
+statsgo<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/STATSGO_Set2_Region18.csv")
+nlcd2011<-read.csv("//172.16.1.5/Data/MarcusBeck/FromJenny/NLCD2011_Region18.csv")
 
 
 NHD_merge<-merge(dat2, elevation, by="COMID")
@@ -125,30 +117,32 @@ z2+1
 NHDpredict<-NHDpredict[,-c(37, 41, 48, 53, 55)]
 NHDpredict<-select(NHDpredict, -CatAreaSqKm.x, -WsAreaSqKm.x, -CatAreaSqKm.y, -WsAreaSqKm.y)
 
+comid_atts <- NHDpredict
+save(comid_atts, file = 'data/comid_atts.RData', compress = 'xz')
+
 #write shapefile to folder
-setwd("C:/Users/JennyT/Documents/LitReview/RB4/StreamCat")
-st_write(NHDpredict, "COMID attributes.shp")
+# st_write(NHDpredict, "//172.16.1.5/Data/MarcusBeck/FromJenny/COMID attributes.shp")
+
 #################################################################################################
 
-
-#investigating relationships between runoffWatershed variable and the others
-test4<-data.frame(NHDpredict)
-test4<-select(test4, -COMID, -geometry)
-par(mfrow=c(1,1), mar=c(5,4,2,2))
-hist(test4$RunoffCat, xlim = c(0,1500))
-plot(test4$RunoffCat, test4$Precip8110Cat)
-with(test4, plot(ElevCat, ElevWs))
-with(test4, plot(HydrlCondCat, HydrlCondWs))    
-with(test4, plot(PctNonCarbResidCat, PctNonCarbResidWs))
-with(test4, plot(PctSilicicCat, PctSilicicWs))
-with(test4, plot(ElevWs, PctUrbLo2011Cat.y))
-
-VariableNAs<-data.frame(colSums(is.na(test4)))#calculate number of NAs for each variable
-#remove the observations with NA so we can do a correlation matrix
-test5<-test4[complete.cases(test4),]
-VariableNAs<-data.frame(colSums(is.na(test5)))#check to make sure 0 for each column
-
-corMatrix<-cor(test5) #correlation matrix for each variable
-correlated<-findCorrelation(corMatrix)#returns columns that have a correlation with another variable>.9
-#remove runoff because its flow per unit area, 
-names(test5[,c(3, 18, 14, 15, 12,  1, 27,  6, 10, 20)])#returns names of variables from line above
+# #investigating relationships between runoffWatershed variable and the others
+# test4<-data.frame(NHDpredict)
+# test4<-select(test4, -COMID, -geometry)
+# par(mfrow=c(1,1), mar=c(5,4,2,2))
+# hist(test4$RunoffCat, xlim = c(0,1500))
+# plot(test4$RunoffCat, test4$Precip8110Cat)
+# with(test4, plot(ElevCat, ElevWs))
+# with(test4, plot(HydrlCondCat, HydrlCondWs))    
+# with(test4, plot(PctNonCarbResidCat, PctNonCarbResidWs))
+# with(test4, plot(PctSilicicCat, PctSilicicWs))
+# with(test4, plot(ElevWs, PctUrbLo2011Cat.y))
+# 
+# VariableNAs<-data.frame(colSums(is.na(test4)))#calculate number of NAs for each variable
+# #remove the observations with NA so we can do a correlation matrix
+# test5<-test4[complete.cases(test4),]
+# VariableNAs<-data.frame(colSums(is.na(test5)))#check to make sure 0 for each column
+# 
+# corMatrix<-cor(test5) #correlation matrix for each variable
+# correlated<-findCorrelation(corMatrix)#returns columns that have a correlation with another variable>.9
+# #remove runoff because its flow per unit area, 
+# names(test5[,c(3, 18, 14, 15, 12,  1, 27,  6, 10, 20)])#returns names of variables from line above
