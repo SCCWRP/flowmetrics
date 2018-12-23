@@ -2,7 +2,7 @@
 
 Metrics to model with StreamCat:
 
-tenyrstorm, twoyrstorm, X5yrRBI, x3yr_SFR, allyr_R10D.5, x3yr_QmaxIDR, x5yr_RecessMaxLength, allyr_LowDur, x5yr_HighDur, x3yr_HighDur, x10yr_HighNum, allyr_MedianNoFlowDays, allyr_Qmax, allyr_Q99
+tenyr, twoyr, X5yrRBI, x3_SFR, all_R10D.5, x3_QmaxIDR, x5_RecessMaxLength, all_LowDur, x5_HighDur, x3_HighDur, x10_HighNum, all_MedianNoFlowDays, all_Qmax, all_Q99
 
 ## Data
 
