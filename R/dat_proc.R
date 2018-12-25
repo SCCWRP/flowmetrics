@@ -65,3 +65,17 @@ dayprcp <- data.frame(
   )
 
 save(dayprcp, file = 'data/dayprcp.RData', compress = 'xz')
+
+##
+# get ave/wet/dry
+data(dayprcp)
+
+yrprcp <- dayprcp %>% 
+  mutate(
+    yr = year(date) 
+  ) %>% 
+  group_by(yr) %>% 
+  summarize(
+    totprcp = sum(prcpmm, na.rm = T)
+  ) 
+# separate into equal wet, dry, avg categories by percentiles
