@@ -14,6 +14,6 @@ tenyr, twoyr, X5yrRBI, x3_SFR, all_R10D.5, x3_QmaxIDR, x5_RecessMaxLength, all_L
 
 * `flowmet.RData` Flow metric data to model, includes data from above list taken from raw data file
 
-* `flowmetest.RData` Model performance for estimated flow metrics
+* `flowmetprf.RData` Model performance for estimated flow metrics
 
 * `yrprcp.RData` dry, ave, wet years from 1985 to 2014

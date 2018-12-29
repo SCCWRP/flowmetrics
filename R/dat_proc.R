@@ -93,7 +93,7 @@ yrprcp <- dayprcp %>%
 save(yrprcp, file = 'data/yrprcp.RData', compress = 'xz')
 
 ######
-# random forest models of flow metrics
+# random forest models of flow metrics, performance
 
 data(flowmet)
 data(yrprcp)
@@ -118,7 +118,6 @@ tomod <- flowmet %>%
   mutate(folds = sample(1:5, length(mo), replace = T)) %>% 
   ungroup %>% 
   gather('var', 'val', -watershedID, -COMID, -date, -mo, -yr, -folds) %>% 
-  # filter(var %in% metsel) %>% 
   left_join(comid_atts, by = 'COMID') %>% 
   left_join(yrprcp, by = 'yr') %>% 
   group_by(var, mo, catprcp) %>% 
@@ -130,8 +129,8 @@ cl<-makeCluster(ncores)
 registerDoParallel(cl)
 strt<-Sys.time()
 
-# create models
-mods <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
+# create models to eval
+modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
 
   # log
   sink('log.txt')
@@ -258,8 +257,129 @@ mods <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) 
 # final output
 flowmetest <- tomod %>% 
   select(-data) %>% 
-  bind_cols(., enframe(mods)) %>% 
+  bind_cols(., enframe(modsprf)) %>% 
   select(-name) %>% 
   unnest(value)
+
+save(flowmetprf, file = 'data/flowmetprf.RData', compress = 'xz')
+
+######
+# random forest models of flow metrics, predicted
+
+data(flowmet)
+data(yrprcp)
+data(comid_atts)
+
+# remote geometry from comid
+comid_atts_nogm <- comid_atts %>% 
+  st_set_geometry(NULL)
+
+# remove totprcp column
+yrprcp <- yrprcp %>% 
+  select(-totprcp)
+
+# setup data to model
+# includes folds, need to make sure these are the same folds across each metric
+tomod <- flowmet %>% 
+  mutate(
+    mo = month(date),
+    yr = year(date)
+  ) %>% 
+  group_by(mo) %>% 
+  mutate(folds = sample(1:5, length(mo), replace = T)) %>% 
+  ungroup %>% 
+  gather('var', 'val', -watershedID, -COMID, -date, -mo, -yr, -folds) %>% 
+  left_join(comid_atts_nogm, by = 'COMID') %>% 
+  left_join(yrprcp, by = 'yr') %>% 
+  group_by(var, mo, catprcp) %>% 
+  nest
+
+# setup parallel
+ncores <- detectCores() - 1 
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+strt<-Sys.time()
+
+# create models for metric predictions
+modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
+  
+  # log
+  sink('log.txt')
+  cat(rw, 'of', nrow(tomod), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  # get index selections
+  var <- tomod[rw, 'var']
+  mo <- tomod[rw, 'mo']
+  catprcp <- as.character(tomod[rw, 'catprcp'])
+  data <- tomod$data[[rw]]
+  
+  # model formula, all
+  frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
+    paste(collapse = ' + ') %>% 
+    paste0('val ~ ', .) %>% 
+    formula
+  
+  # use only one fold
+  fld <- 1
+  
+  # calibration data
+  calset <- data %>% 
+    filter(!folds %in% fld)
+  
+  # create model
+  mod <- randomForest(frm, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
+  
+  # top ten important variables
+  impvars <- mod$importance %>% 
+    as.data.frame %>% 
+    tibble::rownames_to_column('var') %>% 
+    arrange(-`%IncMSE`) %>% 
+    pull(var) %>% 
+    .[1:10]
+    
+  # new formula, from top ten
+  frmimp <- impvars %>% 
+    paste(collapse = '+') %>% 
+    paste0('val~', .) %>% 
+    formula
+
+  # create model, from top ten
+  modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
+  
+  # predictions, all comid attributes
+  prdimp <- predict(modimp, newdata = comid_atts_nogm, predict.all = T)
+  bnds <- apply(prdimp$individual, 1, function(x) quantile(x, probs = c(0.1, 0.9), na.rm = T))
+  cv <- apply(prdimp$individual, 1, function(x) sd(x, na.rm = T)/mean(x, na.rm = T))
+
+  # combine output, estimates, lo, hi, cv, dataset
+  out <- tibble(
+    COMID = comid_atts_nogm$COMID, 
+    est = prdimp$aggregate,
+    lov= bnds[1, ],
+    hiv= bnds[2, ], 
+    cv = coef
+    ) %>% 
+    mutate(set = ifelse(COMID %in% calset$COMID, 'cal', 'notcal'))
+  
+  return(out)
+  
+}
+
+# final output
+flowmetest <- tomod %>% 
+  select(-data) %>% 
+  bind_cols(., enframe(modsest)) %>% 
+  select(-name) %>% 
+  unnest(value)
+
+# get comid geometry
+comid_atts_gm <- comid_atts %>% 
+  select(COMID)
+
+# join geometry
+flowmetest <- flowmetest %>% 
+  left_join(comid_atts_gm, by = 'COMID')
 
 save(flowmetest, file = 'data/flowmetest.RData', compress = 'xz')

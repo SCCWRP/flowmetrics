@@ -18,16 +18,26 @@ library(kableExtra)
 library(lubridate)
 library(kableExtra)
 
-data(flowmetest)
+data(flowmetprf)
 data(dayprcp)
 data(yrprcp)
 
+# join daily precip with annual ave estimates
 prcp <- dayprcp %>% 
   mutate(yr = year(date)) %>% 
   left_join(yrprcp, by = 'yr') %>%
   mutate(
     catprcp = factor(catprcp, levels = c('dry', 'ave', 'wet'))
   )
+
+# complete performance table
+dattaball <- flowmetprf %>% 
+    select(-data, -impvars) %>% 
+    gather('prf', 'val', rmse, rsqr) %>% 
+    unite('prf', set, prf, sep = ' ') %>% 
+    mutate(val = round(val, 2)) %>% 
+    spread(prf, val) %>% 
+    arrange(var, mo, catprcp, modtyp)
 ```
 
 Precipitation from 1985 to 2014:
@@ -48,7 +58,7 @@ p
 ```{r selectors}
 column(12, 
        column(3, 
-              selectInput('metsel', 'Select metric:', choices = sort(unique(flowmetest$var)))
+              selectInput('metsel', 'Select metric:', choices = sort(unique(flowmetprf$var)))
               ),
        
        column(3, 
@@ -75,7 +85,7 @@ datsel <- reactive({
   modsel <- input$modsel
   fldsel <- input$fldsel
 
-  out <- flowmetest %>% 
+  out <- flowmetprf %>% 
     filter(var %in% metsel) %>% 
     filter(catprcp %in% prcpsel) %>% 
     filter(modtyp %in% modsel) %>% 
@@ -85,7 +95,7 @@ datsel <- reactive({
   
 })
 
-# table
+# table, selected
 dattab <- reactive({
   
   # input
@@ -149,6 +159,10 @@ output$datplo <- renderPlot({
 }, height = 300)
 ```
 
+# {.tabset}
+
+## Model performance, selected metric
+
 ```{r}
 renderUI({
   HTML(knitr::kable(dattab(), caption = 'Summary statistics for selection.', format = 'html') %>% 
@@ -161,6 +175,13 @@ Selected StreamCat predictors: `r renderText({datimp()})`
 ```{r}
 plotOutput('datplo')
 ```
+
+## All performance
+
+```{r}
+renderDataTable(dattaball)
+```
+
 
 
 
