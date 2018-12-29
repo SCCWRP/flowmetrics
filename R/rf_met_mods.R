@@ -10,7 +10,7 @@ data(flowmet)
 data(yrprcp)
 data(comid_atts)
 
-metsel <- 'x5_HighDur'
+# metsel <- 'x5_HighDur'
 
 # remote geometry from comid
 comid_atts <- comid_atts %>% 
@@ -31,18 +31,18 @@ tomod <- flowmet %>%
   mutate(folds = sample(1:5, length(mo), replace = T)) %>% 
   ungroup %>% 
   gather('var', 'val', -watershedID, -COMID, -date, -mo, -yr, -folds) %>% 
-  filter(var %in% metsel) %>% 
+  # filter(var %in% metsel) %>% 
   left_join(comid_atts, by = 'COMID') %>% 
   left_join(yrprcp, by = 'yr') %>% 
-  group_by(mo, catprcp) %>% 
+  group_by(var, mo, catprcp) %>% 
   nest
 
 # create models
 mods <- tomod %>% 
   mutate(
-    ests = pmap(list(mo, catprcp, data), function(mo, catprcp, data){
+    ests = pmap(list(var, mo, catprcp, data), function(var, mo, catprcp, data){
       
-      cat(mo, as.character(catprcp), '\n')
+      cat(var, mo, as.character(catprcp), '\n')
       
       # model formula, all
       frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
