@@ -70,6 +70,8 @@ save(dayprcp, file = 'data/dayprcp.RData', compress = 'xz')
 # get ave/wet/dry
 data(dayprcp)
 
+# cumulative precipitation by calendar year
+# dry, ave, wet based on equal quantiles
 yrprcp <- dayprcp %>% 
   mutate(
     yr = year(date) 
@@ -77,5 +79,13 @@ yrprcp <- dayprcp %>%
   group_by(yr) %>% 
   summarize(
     totprcp = sum(prcpmm, na.rm = T)
-  ) 
-# separate into equal wet, dry, avg categories by percentiles
+  ) %>% 
+  ungroup %>% 
+  mutate(
+    catprcp = cut(totprcp,
+                  breaks = c(-Inf, quantile(totprcp, c(0.33, 0.66)), Inf), 
+                  labels = c('dry', 'ave', 'wet')
+                  )
+  )
+
+save(yrprcp, file = 'data/yrprcp.RData', compress = 'xz')
