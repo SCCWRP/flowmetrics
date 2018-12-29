@@ -1,0 +1,138 @@
+---
+title: "Model performance for estimated flow metrics"
+author: ""
+output: 
+  html_document:
+    css: kable.css
+self_contained: yes
+runtime: shiny
+---
+
+```{r, message = F, warning = F, echo = F}
+library(knitr)
+
+opts_chunk$set(warning = FALSE, message = FALSE, dev.args = list(bg = 'transparent', family = 'serif'), eval = T, echo = F)
+library(tidyverse)
+library(shiny)
+library(kableExtra)
+library(lubridate)
+library(kableExtra)
+
+data(flowmetest)
+data(dayprcp)
+data(yrprcp)
+
+prcp <- dayprcp %>% 
+  mutate(yr = year(date)) %>% 
+  left_join(yrprcp, by = 'yr') %>%
+  mutate(
+    catprcp = factor(catprcp, levels = c('dry', 'ave', 'wet'))
+  )
+```
+
+Precipitation from 1985 to 2014:
+```{r, fig.height = 3, fig.width = 9}
+p <- ggplot(prcp, aes(x = date, y = prcpmm, colour = catprcp, group= interaction(catprcp, yr))) + 
+  geom_path() + 
+  theme_bw(base_family = 'serif', base_size = 16) + 
+  scale_colour_manual(values = c('tomato1', 'lightgreen', 'skyblue1')) + 
+  ylab('Precipitation (mm)') + 
+  theme(
+    axis.title.x = element_blank(),
+    legend.position = 'top',
+    legend.title = element_blank()
+  )
+p
+```
+
+```{r selectors}
+column(12, 
+       column(4, 
+              selectInput('prcpsel', 'Select precipication:', choices = c('dry', 'ave', 'wet'))
+              ),
+       
+       column(4, 
+              selectInput('modsel', 'Select model type:', choices = list(full = 'prd', selected = 'prdimp'))
+              ),
+       column(4,
+              selectInput('fldsel', 'Select fold:', choices = c(1:5))
+              )
+       )
+```
+
+```{r reactives}
+# data to plot, table
+datsel <- reactive({
+  
+  # inputs
+  prcpsel <- input$prcpsel
+  modsel <- input$modsel
+  fldsel <- input$fldsel
+
+  out <- flowmetest %>% 
+    filter(catprcp %in% prcpsel) %>% 
+    filter(modtyp %in% modsel) %>% 
+    filter(fld %in% fldsel)
+  
+  return(out)
+  
+})
+
+# table
+dattab <- reactive({
+  
+  # input
+  datsel <- datsel()
+
+  out <- datsel %>% 
+    select(mo, set, rmse, rsqr) %>% 
+    gather('var', 'val', rmse, rsqr) %>% 
+    unite('var', set, var, sep = ' ') %>% 
+    mutate(val = round(val, 2)) %>% 
+    spread(var, val) %>% 
+    arrange(mo) 
+  
+  return(out)
+  
+})
+
+# plot
+output$datplo <- renderPlot({
+  
+  # input
+  datsel <- datsel()
+  
+  toplo <- datsel %>% 
+    select(mo, set, data) %>% 
+    unnest
+  
+  p <- ggplot(toplo, aes(x = modprd, y = obs)) + 
+    geom_point() + 
+    facet_grid(mo ~ set) +
+    geom_abline(intercept = 0, slope = 1) +
+    geom_smooth(method = 'lm', se = F, linetype = 'dashed') + 
+    theme_bw(base_family = 'serif', base_size = 16) + 
+    xlab('Predicted') +
+    ylab('Observed') + 
+    theme(strip.background = element_blank())
+  
+  return(p)
+  
+}, height = 500)
+```
+
+```{r}
+renderUI({
+  HTML(knitr::kable(dattab(), caption = 'Summary statistics for selection.', format = 'html') %>% 
+    kable_styling(full_width = T, font_size = 14))
+})
+```
+
+```{r}
+plotOutput('datplo')
+```
+
+
+
+
+
