@@ -68,7 +68,7 @@ mods <- tomod %>%
           filter(folds %in% fld)
 
         # create model
-        mod <- randomForest(frm, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit)
+        mod <- randomForest(frm, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
     
         # top ten important variables
         impvars <- mod$importance %>% 
@@ -85,16 +85,33 @@ mods <- tomod %>%
           formula
         
         # create model, from top ten
-        modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit)
+        modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
 
+        # oob predictions for mod, modimp
+        calsetid <- calset %>% 
+          mutate(id = 1:nrow(.)) %>% 
+          select(id)
+        prd <- predict(mod) %>% 
+          data.frame(prd = .) %>% 
+          rownames_to_column('id') %>% 
+          mutate(id = as.numeric(id)) %>% 
+          left_join(calsetid, ., by = 'id') %>% 
+          pull(prd)
+        prdimp <- predict(modimp) %>% 
+          data.frame(prd = .) %>% 
+          rownames_to_column('id') %>% 
+          mutate(id = as.numeric(id)) %>% 
+          left_join(calsetid, ., by = 'id') %>% 
+          pull(prd)
+        
         # calibration prediction, full and important
         calpred <- tibble(
           set = 'cal',
           COMID = calset$COMID, 
           date= calset$date,
           obs = calset$val, 
-          prd = predict(mod, newdata = calset),
-          prdimp = predict(modimp, newdata = calset)
+          prd = prd,
+          prdimp = prdimp
           )
         
         # validation prediction, full and important

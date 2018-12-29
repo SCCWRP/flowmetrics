@@ -96,6 +96,23 @@ dattab <- reactive({
   
 })
 
+# imp predictors for the model
+datimp <- reactive({
+  
+  # input
+  datsel <- datsel()
+  
+  out <- datsel %>% 
+    pull(impvars) %>%
+    unlist %>% 
+    unique %>% 
+    sort %>% 
+    paste(collapse = ', ')
+  
+  return(out)
+    
+})
+
 # plot
 output$datplo <- renderPlot({
   
@@ -127,6 +144,8 @@ renderUI({
     kable_styling(full_width = T, font_size = 14))
 })
 ```
+
+Top ten selected variables: `r renderText({datimp()})`
 
 ```{r}
 plotOutput('datplo')
