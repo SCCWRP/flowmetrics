@@ -47,14 +47,19 @@ p
 
 ```{r selectors}
 column(12, 
-       column(4, 
+       column(3, 
+              selectInput('metsel', 'Select metric:', choices = sort(unique(flowmetest$var)))
+              ),
+       
+       column(3, 
               selectInput('prcpsel', 'Select precipication:', choices = c('dry', 'ave', 'wet'))
               ),
        
-       column(4, 
+       column(3, 
               selectInput('modsel', 'Select model type:', choices = list(full = 'prd', selected = 'prdimp'))
               ),
-       column(4,
+       
+       column(3,
               selectInput('fldsel', 'Select fold:', choices = c(1:5))
               )
        )
@@ -65,11 +70,13 @@ column(12,
 datsel <- reactive({
   
   # inputs
+  metsel <- input$metsel
   prcpsel <- input$prcpsel
   modsel <- input$modsel
   fldsel <- input$fldsel
 
   out <- flowmetest %>% 
+    filter(var %in% metsel) %>% 
     filter(catprcp %in% prcpsel) %>% 
     filter(modtyp %in% modsel) %>% 
     filter(fld %in% fldsel)
@@ -101,13 +108,17 @@ datimp <- reactive({
   
   # input
   datsel <- datsel()
+  modsel <- input$modsel
   
-  out <- datsel %>% 
-    pull(impvars) %>%
-    unlist %>% 
-    unique %>% 
-    sort %>% 
-    paste(collapse = ', ')
+  if(modsel == 'prd')
+    out <- 'all'
+  else 
+    out <- datsel %>% 
+      pull(impvars) %>%
+      unlist %>% 
+      unique %>% 
+      sort %>% 
+      paste(collapse = ', ')
   
   return(out)
     
@@ -125,7 +136,7 @@ output$datplo <- renderPlot({
   
   p <- ggplot(toplo, aes(x = modprd, y = obs)) + 
     geom_point() + 
-    facet_grid(mo ~ set) +
+    facet_grid(set ~ mo) +
     geom_abline(intercept = 0, slope = 1) +
     geom_smooth(method = 'lm', se = F, linetype = 'dashed') + 
     theme_bw(base_family = 'serif', base_size = 16) + 
@@ -135,7 +146,7 @@ output$datplo <- renderPlot({
   
   return(p)
   
-}, height = 500)
+}, height = 300)
 ```
 
 ```{r}
@@ -145,7 +156,7 @@ renderUI({
 })
 ```
 
-Top ten selected variables: `r renderText({datimp()})`
+Selected StreamCat predictors: `r renderText({datimp()})`
 
 ```{r}
 plotOutput('datplo')

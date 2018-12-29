@@ -1,6 +1,8 @@
 # README
 
-Metrics to model with StreamCat:
+Model performance: [https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd](https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd)
+
+Metrics modelled with StreamCat:
 
 tenyr, twoyr, X5yrRBI, x3_SFR, all_R10D.5, x3_QmaxIDR, x5_RecessMaxLength, all_LowDur, x5_HighDur, x3_HighDur, x10_HighNum, all_MedianNoFlowDays, all_Qmax, all_Q99
 
