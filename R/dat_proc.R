@@ -380,6 +380,7 @@ comid_atts_gm <- comid_atts %>%
 
 # join geometry
 flowmetest <- flowmetest %>% 
-  left_join(comid_atts_gm, by = 'COMID')
+  left_join(comid_atts_gm, by = 'COMID') %>% 
+  st_as_sf()
 
 save(flowmetest, file = 'data/flowmetest.RData', compress = 'xz')

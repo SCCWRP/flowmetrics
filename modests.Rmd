@@ -1,9 +1,11 @@
 ---
-title: "Model performance for estimated flow metrics"
+title: "Model performance and predictions for flow metrics"
 author: ""
 output: 
   html_document:
     css: kable.css
+    includes: 
+      in_header: cssloaders_in_header.html
 self_contained: yes
 runtime: shiny
 ---
@@ -17,8 +19,13 @@ library(shiny)
 library(kableExtra)
 library(lubridate)
 library(kableExtra)
+library(mapview)
+library(leaflet)
+library(sf)
+library(shinycssloaders)
 
 data(flowmetprf)
+data(flowmetest)
 data(dayprcp)
 data(yrprcp)
 
@@ -63,14 +70,6 @@ column(12,
        
        column(3, 
               selectInput('prcpsel', 'Select precipication:', choices = c('dry', 'ave', 'wet'))
-              ),
-       
-       column(3, 
-              selectInput('modsel', 'Select model type:', choices = list(full = 'prd', selected = 'prdimp'))
-              ),
-       
-       column(3,
-              selectInput('fldsel', 'Select fold:', choices = c(1:5))
               )
        )
 ```
@@ -157,11 +156,56 @@ output$datplo <- renderPlot({
   return(p)
   
 }, height = 300)
+
+# map
+output$map <- renderLeaflet({
+
+  # input
+  metsel <- input$metsel
+  prcpsel <- input$prcpsel
+  mosel <- input$mosel
+  colsel <- input$colsel
+  
+  toplo <- flowmetest %>% 
+    filter(var %in% metsel) %>% 
+    filter(mo %in% mosel) %>% 
+    filter(catprcp %in% prcpsel)
+  
+  # cols
+  pal <- colorNumeric(
+      palette = rev(RColorBrewer::brewer.pal(11, 'Spectral')),
+      na.color = 'grey',
+      domain = range(toplo[[colsel]], na.rm = T)
+      )
+
+  out <- mapview(toplo, homebutton = F, label = round(toplo[[colsel]], 2), color = pal(toplo[[colsel]])) %>% 
+    .@map %>% 
+    removeMouseCoordinates() %>% 
+    addLegend("topright", pal = pal, values = toplo[[colsel]],
+                title = colsel,
+                opacity = 1
+      )
+  
+  return(out)
+  
+})
 ```
 
 # {.tabset}
 
 ## Model performance, selected metric
+
+```{r}
+column(12, 
+       column(3, 
+              selectInput('modsel', 'Select model type:', choices = list(full = 'prd', selected = 'prdimp'))
+              ),
+       
+       column(3,
+              selectInput('fldsel', 'Select fold:', choices = c(1:5))
+              )
+       )
+```
 
 ```{r}
 renderUI({
@@ -173,7 +217,7 @@ renderUI({
 Selected StreamCat predictors: `r renderText({datimp()})`
 
 ```{r}
-plotOutput('datplo')
+plotOutput('datplo') %>% withSpinner()
 ```
 
 ## All performance
@@ -182,8 +226,23 @@ plotOutput('datplo')
 renderDataTable(dattaball)
 ```
 
+## Model predictions
 
+```{r}
+column(12, 
+       column(3, 
+              selectInput('mosel', 'Select month:', choices = sort(unique(flowmetprf$mo)))
+              ),
+       
+       column(3, 
+              selectInput('colsel', 'Select value to show:', choices = list(`predicted` = 'est', `CV` = 'cv'))
+              )
+       )
+```
 
+```{r}
+leafletOutput('map', height = 600) %>% withSpinner()
+```
 
 
 
