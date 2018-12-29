@@ -7,16 +7,18 @@ library(sf)
 library(randomForest)
 
 data(flowmet)
+data(yrprcp)
 data(comid_atts)
 
 metsel <- 'x5_HighDur'
 
-# separate models for each metric, month, flow year (wet, dry, avg)
-# try with all streamcat variables, check importance, then try again
-# use cross-validation
-
+# remote geometry from comid
 comid_atts <- comid_atts %>% 
   st_set_geometry(NULL)
+
+# remove totprcp column
+yrprcp <- yrprcp %>% 
+  select(-totprcp)
 
 # setup data to model
 # includes folds, need to make sure these are the same folds across each metric
@@ -28,19 +30,117 @@ tomod <- flowmet %>%
   group_by(mo) %>% 
   mutate(folds = sample(1:5, length(mo), replace = T)) %>% 
   ungroup %>% 
-  gather('var', 'val', -watershedID, -COMID, -date, -mo, -yr) %>% 
+  gather('var', 'val', -watershedID, -COMID, -date, -mo, -yr, -folds) %>% 
   filter(var %in% metsel) %>% 
   left_join(comid_atts, by = 'COMID') %>% 
-  group_by(mo) %>% 
+  left_join(yrprcp, by = 'yr') %>% 
+  group_by(mo, catprcp) %>% 
   nest
 
-# setup the models
+# create models
 mods <- tomod %>% 
   mutate(
-    modall = map(data, funtion(x){
+    ests = pmap(list(mo, catprcp, data), function(mo, catprcp, data){
       
-      browser()
+      cat(mo, as.character(catprcp), '\n')
+      
+      # model formula, all
+      frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
+        paste(collapse = ' + ') %>% 
+        paste0('val ~ ', .) %>% 
+        formula
+      
+      # folds
+      flds <- unique(data$folds)
+      
+      # pre-allocated output
+      out <- vector('list', length = length(flds))
+      
+      # loop through folds
+      for(fld in flds){
+        
+        # calibration data
+        calset <- data %>% 
+          filter(!folds %in% fld)
+        
+        # validation data
+        valset <- data %>% 
+          filter(folds %in% fld)
+
+        # create model
+        mod <- randomForest(frm, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit)
+    
+        # top ten important variables
+        impvars <- mod$importance %>% 
+          as.data.frame %>% 
+          tibble::rownames_to_column('var') %>% 
+          arrange(-`%IncMSE`) %>% 
+          pull(var) %>% 
+          .[1:10]
+        
+        # new formula, from top ten
+        frmimp <- impvars %>% 
+          paste(collapse = '+') %>% 
+          paste0('val~', .) %>% 
+          formula
+        
+        # create model, from top ten
+        modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit)
+
+        # calibration prediction, full and important
+        calpred <- tibble(
+          set = 'cal',
+          COMID = calset$COMID, 
+          date= calset$date,
+          obs = calset$val, 
+          prd = predict(mod, newdata = calset),
+          prdimp = predict(modimp, newdata = calset)
+          )
+        
+        # validation prediction, full and important
+        valpred <- tibble(
+          set = 'val', 
+          COMID = valset$COMID,
+          date = valset$date,
+          obs = valset$val, 
+          prd = predict(mod, newdata = valset),
+          prdimp = predict(modimp, newdata = valset)
+          )
+
+        # combine cal, val, get summary stats
+        prds <- bind_rows(calpred, valpred) %>% 
+          gather('modtyp', 'modprd', prd, prdimp) %>% 
+          group_by(set, modtyp) %>% 
+          nest() %>% 
+          mutate(
+            rmse = map(data, function(x) sqrt(mean(x$obs - x$modprd, na.rm = T)^2)), 
+            rsqr = map(data, function(x){
+              lm(obs ~ modprd, data = x) %>% 
+                summary %>%
+                .$r.squared
+              }), 
+            impvars = list(impvars)
+          ) %>% 
+          unnest(rmse, rsqr)
+        
+        # append to output
+        out[[fld]] <- prds
+          
+      }
+      
+      # combine all fold data
+      out <- out %>% 
+        enframe('fld') %>% 
+        unnest
+      
+      return(out)
       
     })
   )
 
+# final output
+flowmetest <- mods %>% 
+  select(-data) %>% 
+  unnest(ests)
+
+save(flowmetest, file = 'data/flowmetest.RData', compress = 'xz')
