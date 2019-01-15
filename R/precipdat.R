@@ -1,8 +1,7 @@
 library(h5)
 library(tidyverse)
 library(sf)
-library(foreach)
-library(doParallel)
+library(raster)
 
 utmprj <- "+proj=utm +zone=11 +datum=NAD83 +units=m +no_defs"
 decprj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
@@ -32,52 +31,53 @@ lons <- c(-119.70, -117.37)
 # get recursive file list, daily for each water year
 fls <- list.files('D:/Baseline', recursive = T, full.names = T)
 
-# setup parallel backend
-ncores <- detectCores() - 1  
-cl<-makeCluster(ncores)
-registerDoParallel(cl)
+# output
+res <- list()
 strt<-Sys.time()
 
 # process
-res <- foreach(i = seq_along(fls), .packages = c('tidyverse', 'sf', 'raster', 'h5')) %dopar% {
-
-  # log
-  sink('log.txt')
-  cat(i, 'of', length(fls), '\n')
+for (i in seq_along(fls)){  
+  
+  # counter
+  cat(i, '\n')
   print(Sys.time()-strt)
-  sink()
-
+  
   # select one h5 file, open connection
   h5flcon <- h5file(name = fls[i], mode = "a")
   
   # read dataset, 8(3hr) x 1600 x 2400
-  ppt <- readDataSet(h5flcon['PPT'])
+  # rearrange rows, get in correct order for array
+  # make raster brick
+  ppt <- readDataSet(h5flcon['PPT']) %>% 
+    .[, ncol(.):1, ] 
+  nr <- ncol(ppt)
+  nc <- dim(ppt)[3]
+  nz <- nrow(ppt)
+  ppt <- sapply(1:nrow(ppt), function(x) ppt[x, , ], simplify = F)
+  ppt <- array(unlist(ppt), dim = c(nr, nc, nz)) %>%
+    brick(xmn = lons[1], xmx = lons[2], ymn = lats[1], ymx = lats[2], crs = CRS(decprj))
   
   # extract three hour estimates for the day
-  dly <- NULL
-  for(i in 1:nrow(ppt)){
-  
-    # convert to raster, project, extract
-    ppttmp <- ppt[i, , ] %>% 
-      .[nrow(.):1, ] %>% 
-      raster(xmn = lons[1], xmx = lons[2], ymn = lats[1], ymx = lats[2], crs = CRS(decprj)) %>% 
-      extract(comid_sel)
-  
-    # combine three hour ests
-    dly <- cbind(dly, ppttmp)
-    
-  }
-
-  # get daily total, combine with COMID
-  dly <- rowSums(dly, na.rm = T) %>% 
+  # get daily total
+  dly <- ppt %>%  
+    extract(comid_sel) %>% 
+    rowSums(na.rm = T) %>% 
     tibble(COMID = comid_pnts$COMID, dly_prp = .)
   
-  return(dly)
+  # close the connection
+  h5close(h5flcon)
+  
+  # append to output
+  res <- c(res, list(dly))
+  
+  # save every 1000 files
+  if(i %% 1000 == 0)
+    save(res, file = 'data/res.RData', compress = 'xz')
   
 }
 
 # combine output to save
-names(res) <- basename(fls[1:50])
+names(res) <- basename(fls)
 bsext <- res %>% 
   enframe %>% 
   unnest
