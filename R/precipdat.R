@@ -2,6 +2,8 @@ library(h5)
 library(tidyverse)
 library(sf)
 library(raster)
+library(foreach)
+library(doParallel)
 
 utmprj <- "+proj=utm +zone=11 +datum=NAD83 +units=m +no_defs"
 decprj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
@@ -29,18 +31,22 @@ lats <- c(33.5, 35.01101)
 lons <- c(-119.70, -117.37)
 
 # get recursive file list, daily for each water year
-fls <- list.files('D:/Baseline', recursive = T, full.names = T)
+fls <- list.files('C:/Users/Marcus.SCCWRP2K/Desktop/tmp', recursive = T, full.names = T)
 
-# output
-res <- list()
+# setup parallel backend
+ncores <- detectCores() - 1  
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
 strt<-Sys.time()
 
 # process
-for (i in seq_along(fls)){  
+res <- foreach(i = seq_along(fls), .packages = c('tidyverse', 'sf', 'raster', 'h5')) %dopar% {
   
-  # counter
-  cat(i, '\n')
+  # log
+  sink('log.txt')
+  cat(i, 'of', length(fls), '\n')
   print(Sys.time()-strt)
+  sink()
   
   # select one h5 file, open connection
   h5flcon <- h5file(name = fls[i], mode = "a")
@@ -67,12 +73,7 @@ for (i in seq_along(fls)){
   # close the connection
   h5close(h5flcon)
   
-  # append to output
-  res <- c(res, list(dly))
-  
-  # save every 1000 files
-  if(i %% 1000 == 0)
-    save(res, file = 'data/res.RData', compress = 'xz')
+  return(dly)
   
 }
 
