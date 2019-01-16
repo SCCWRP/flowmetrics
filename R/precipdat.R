@@ -81,5 +81,10 @@ res <- foreach(i = seq_along(fls), .packages = c('tidyverse', 'sf', 'raster', 'h
 names(res) <- basename(fls)
 bsext <- res %>% 
   enframe %>% 
-  unnest
+  unnest %>% 
+  mutate(
+    date = gsub('^.*\\_([0-9]+)\\.h5$', '\\1', name),
+    date = lubridate::ymd(date)
+  ) %>% 
+  select(date, COMID, dly_prp)
 save(bsext, file = 'data/bsext.RData', compress = 'xz')
