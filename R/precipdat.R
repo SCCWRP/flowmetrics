@@ -31,7 +31,7 @@ lats <- c(33.5, 35.01101)
 lons <- c(-119.70, -117.37)
 
 # get recursive file list, daily for each water year
-fls <- list.files('C:/Users/Marcus.SCCWRP2K/Desktop/tmp', recursive = T, full.names = T)
+fls <- list.files('D:/PPT/Baseline', recursive = T, full.names = T)
 
 # setup parallel backend
 ncores <- detectCores() - 1  
