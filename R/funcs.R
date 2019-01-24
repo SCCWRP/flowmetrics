@@ -7,7 +7,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   
   # check arg  
   subnm <- match.arg(subnm)
-
+  
   # qin_create
   qin_create <- flowin %>% 
     filter(COMID %in% ID) %>%
@@ -31,7 +31,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   
   # sitefile create if not all
   if(subnm != 'all'){
-
+    
     # correction factor for start year
     yrfct <- gsub('^x', '', subnm) %>% 
       as.numeric
@@ -57,7 +57,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
       "lowflowyear" = 4)
     sitefile_create<-mutate(sitefile_create, styr=endyr - yrfct)  
     sitefile_create$stid<-as.numeric(sitefile_create$stid)
-
+    
   }
   
   #####################Begin Konrad Script###################################
@@ -483,7 +483,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   qsum$MinMonthQ=apply(monthsum[,,4],1,min, na.rm=TRUE)
   qsum$MaxMonth=apply(cbind(1:num_sites_processed),1,function(x) match(qsum$MaxMonthQ[x],monthsum[x,,4]))
   qsum$MinMonth=apply(cbind(1:num_sites_processed),1,function(x) match(qsum$MinMonthQ[x],monthsum[x,,4]))
-
+  
   # combine output
   out <- cbind(sitefile_create, qsum) %>% 
     select(-styr, -stmn, -stdy, -minyr, -mindays, -lowflowyear, -Site, -Years, -StartWY, -EndWY) %>% 
@@ -491,9 +491,9 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
     mutate(
       date = mdy(date), 
       ktype = subnm
-      ) %>% 
+    ) %>% 
     gather('met', 'val', -stid, -date, -ktype)
   
   return(out)
-
+  
 }

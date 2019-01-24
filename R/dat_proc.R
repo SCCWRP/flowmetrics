@@ -8,12 +8,16 @@ library(doParallel)
 library(rnoaa)
 library(sf)
 library(randomForest)
+library(h5)
+library(raster)
+
+source('R/funcs.R')
 
 ##
 # flow metrics to predict
 
 flowmet <- read.csv('raw/final_metrics.csv', stringsAsFactors = F) %>% 
-  select(SITE.x, COMID, date, tenyr, twoyr, X5yrRBI, x3_SFR, all_R10D.5, x3_QmaxIDR, x5_RecessMaxLength, all_LowDur, x5_HighDur, x3_HighDur, x10_HighNum, all_MedianNoFlowDays, all_Qmax, all_Q99) %>% 
+  dplyr::select(SITE.x, COMID, date, tenyr, twoyr, X5yrRBI, x3_SFR, all_R10D.5, x3_QmaxIDR, x5_RecessMaxLength, all_LowDur, x5_HighDur, x3_HighDur, x10_HighNum, all_MedianNoFlowDays, all_Qmax, all_Q99) %>% 
   rename(
     watershedID = SITE.x
   ) %>% 
@@ -93,6 +97,119 @@ yrprcp <- dayprcp %>%
 save(yrprcp, file = 'data/yrprcp.RData', compress = 'xz')
 
 ######
+# extract hires simulated precip data by COMID pnts
+
+utmprj <- "+proj=utm +zone=11 +datum=NAD83 +units=m +no_defs"
+decprj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
+data(comid_pnts)
+
+# reproject
+comid_sel <- comid_pnts %>% 
+  st_transform(decprj)
+
+# lat and lon
+# lats <- readLines('L:/Flow ecology and climate change_ES/Data/RawData/Lat.dat') %>% 
+#   strsplit('\\s+') %>% 
+#   unlist %>% 
+#   unique %>% 
+#   as.numeric %>% 
+#   range(na.rm = T)
+# lons <- readLines('L:/Flow ecology and climate change_ES/Data/RawData/Lon.dat') %>% 
+#   strsplit('\\s+') %>% 
+#   unlist %>% 
+#   unique %>% 
+#   as.numeric %>% 
+#   range(na.rm = T)
+lats <- c(33.5, 35.01101)
+lons <- c(-119.70, -117.37)
+
+# get recursive file list, daily for each water year
+fls <- list.files('D:/PPT/Baseline', recursive = T, full.names = T)
+
+# setup parallel backend
+ncores <- detectCores() - 1  
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+strt<-Sys.time()
+
+# process
+res <- foreach(i = seq_along(fls), .packages = c('tidyverse', 'sf', 'raster', 'h5')) %dopar% {
+  
+  # log
+  sink('log.txt')
+  cat(i, 'of', length(fls), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  # select one h5 file, open connection
+  h5flcon <- h5file(name = fls[i], mode = "a")
+  
+  # read dataset, 8(3hr) x 1600 x 2400
+  # rearrange rows, get in correct order for array
+  # make raster brick
+  ppt <- readDataSet(h5flcon['PPT']) %>% 
+    .[, ncol(.):1, ] 
+  nr <- ncol(ppt)
+  nc <- dim(ppt)[3]
+  nz <- nrow(ppt)
+  ppt <- sapply(1:nrow(ppt), function(x) ppt[x, , ], simplify = F)
+  ppt <- array(unlist(ppt), dim = c(nr, nc, nz)) %>%
+    brick(xmn = lons[1], xmx = lons[2], ymn = lats[1], ymx = lats[2], crs = CRS(decprj))
+  
+  # extract three hour estimates for the day
+  # get daily total
+  dly <- ppt %>%  
+    extract(comid_sel) %>% 
+    rowSums(na.rm = T) %>% 
+    tibble(COMID = comid_pnts$COMID, dly_prp = .)
+  
+  # close the connection
+  h5close(h5flcon)
+  
+  return(dly)
+  
+}
+
+# combine output to save
+names(res) <- basename(fls)
+bsext <- res %>% 
+  enframe %>% 
+  unnest %>% 
+  mutate(
+    date = gsub('^.*\\_([0-9]+)\\.h5$', '\\1', name),
+    date = lubridate::ymd(date)
+  ) %>% 
+  select(date, COMID, dly_prp)
+save(bsext, file = 'data/bsext.RData', compress = 'xz')
+
+######
+# estimate Konrad metrics from extracted precip data above
+
+data(bsext)
+data(flowmet)
+
+# select master ID
+ID <- unique(flowmet$COMID) %>% 
+  sort
+
+# setup parallel backend
+cores <- detectCores() - 2
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+#prep site file data
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  konradfun(id = ID, flowin = bsext, subnm = i)
+  
+}
+
+kradprecipmet <- do.call('rbind', res) %>% 
+  rename(COMID = stid)
+save(kradprecipmet, file = 'data/kradprecipmet.RData', compress = 'xz')
+
+######
 # random forest models of flow metrics, performance
 
 data(flowmet)
@@ -105,7 +222,7 @@ comid_atts <- comid_atts %>%
 
 # remove totprcp column
 yrprcp <- yrprcp %>% 
-  select(-totprcp)
+  dplyr::select(-totprcp)
 
 # setup data to model
 # includes folds, need to make sure these are the same folds across each metric
@@ -190,7 +307,7 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
     # oob predictions for mod, modimp
     calsetid <- calset %>% 
       mutate(id = 1:nrow(.)) %>% 
-      select(id)
+      dplyr::select(id)
     prd <- predict(mod) %>% 
       data.frame(prd = .) %>% 
       rownames_to_column('id') %>% 
@@ -256,9 +373,9 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
 
 # final output
 flowmetest <- tomod %>% 
-  select(-data) %>% 
+  dplyr::select(-data) %>% 
   bind_cols(., enframe(modsprf)) %>% 
-  select(-name) %>% 
+  dplyr::select(-name) %>% 
   unnest(value)
 
 save(flowmetprf, file = 'data/flowmetprf.RData', compress = 'xz')
@@ -276,7 +393,7 @@ comid_atts_nogm <- comid_atts %>%
 
 # remove totprcp column
 yrprcp <- yrprcp %>% 
-  select(-totprcp)
+  dplyr::select(-totprcp)
 
 # setup data to model
 # includes folds, need to make sure these are the same folds across each metric
@@ -369,14 +486,14 @@ modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
 
 # final output
 flowmetest <- tomod %>% 
-  select(-data) %>% 
+  dplyr::select(-data) %>% 
   bind_cols(., enframe(modsest)) %>% 
-  select(-name) %>% 
+  dplyr::select(-name) %>% 
   unnest(value)
 
 # get comid geometry
 comid_atts_gm <- comid_atts %>% 
-  select(COMID)
+  dplyr::select(COMID)
 
 # join geometry
 flowmetest <- flowmetest %>% 
