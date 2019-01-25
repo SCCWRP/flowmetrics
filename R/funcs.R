@@ -1,9 +1,12 @@
+#' Get Konrad metrics, currently setup for using extracted precip data
+#'
 #' @param id vector of site IDs, used to filter flowin
 #' @param flowin actual flow data, for qin_create
 #' @param dtstrt starting date, for sitefile_create, corrected by subnm
 #' @param dtend ending date, for sitefile_create
 #' @param subnm metric types as 3, 5, 10, or all years
-konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all')){
+#' @param inps logical to return q and sites objects for additional metrics
+konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all'), inps = FALSE){
   
   # check arg  
   subnm <- match.arg(subnm)
@@ -147,6 +150,10 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   sites$enddate=sites$endyr*10000+sites$endmn*100+sites$enddy
   #sites$enddate2[sites$lfmon<10]=(sites$endyr[sites$lfmon<10]+1)*10000+sites$lfmon[sites$lfmon<10]*100 # REMOVED THIS LINE OF CODE because my end date is the date of species observation, not the following years low flow month
   num_sites=dim(sites)[[1]]
+  
+  # exit for addl metrics if true
+  if(inps)
+    return(list(q = q, sites = sites))
   
   ##########################################################################################
   #CENSOR FLOW RECORDS (q) FOR SELECTED SITES AND WATER YEARS
@@ -494,6 +501,359 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
     ) %>% 
     gather('met', 'val', -stid, -date, -ktype)
   
+  return(out)
+  
+}
+
+######
+#' monthly flow estimates
+#' 
+#' @param q formatted flow data as output from konrad_fun with input as true
+#' @param sites formatted flow data as output from konrad_fun with input as true 
+mofl_fun <- function(q, sites){
+  
+  # get sites that have flow
+  sites <- sites %>% 
+    filter(staid %in% names(q))
+  
+  test<-q
+  test$date<-row.names(q)
+  test$month<-month(test$date)
+  test$year<-year(test$date)
+  
+  # get list of dates that we want to make this calulation for
+  sites<-sites[,c(1,5,6)]
+  sites<-unique(sites)
+  names(sites)[1]<-"SITE"
+  
+  #make flow in long format and then group by location, year, month
+  
+  newdat<-test %>% 
+    gather("SITE","flow", -date, -month, -year)
+  
+  # calculating monthly mean
+  monthly_mean <- newdat %>% 
+    group_by(SITE,year, month) %>% 
+    summarize(flow = mean(flow, na.rm = T))
+  
+  out <- NULL  
+  for (i in 1:nrow(sites)){
+    
+    # cat(i, '\t')
+    
+    rw <- sites[i, ]
+    site <- rw$SITE
+    
+    # date objects
+    dt <- paste(rw$endyr, rw$endmn, '15', sep = '-') %>% 
+      ymd
+    dtpri <- dt - (11 * 31)
+    
+    # staring year mo
+    stryr <- rw$endyr
+    strmo <- rw$endmn
+    
+    # prior year mo
+    priyr <- year(dtpri)
+    primo <- month(dtpri)
+    
+    monthsel <- c(primo:12, 1:strmo)
+    # starting flow
+    startind <- with(monthly_mean, which(year == stryr & month == strmo & SITE == site))
+    endinind <- with(monthly_mean, which(year == priyr & month == primo & SITE == site))
+    
+    # output
+    flows <- monthly_mean[endinind:startind, ] %>% 
+      mutate(month = month(month, label = T)) %>% 
+      arrange(month) %>% 
+      ungroup %>% 
+      select(month, flow) %>% 
+      spread(month, flow)
+    
+    out <- rbind(out, flows)
+    
+  }
+  
+  out <- cbind(sites, out)
+  
+  return(out)
+  
+}
+
+######
+#' richard baker index, by year groups
+#'
+#' @param q formatted flow data as output from konrad_fun with input as true
+#' @param sites formatted flow data as output from konrad_fun with input as true
+rbiyrs_fun <- function(q, sites){
+  
+  # richards baker index past 3, 5,10, and all years
+  
+  # get sites with flow data
+  sites <- sites %>% 
+    filter(staid %in% names(q))
+  
+  test<-q
+  test$date<-row.names(q)
+  test$month<-month(test$date)
+  test$year<-year(test$date)
+  
+  sites<-sites[,c(1,5,6,7)]
+  sites<-unique(sites)
+  names(sites)[1]<-"SITE"
+  
+  #make flow in long format and then group by location, year, month
+  
+  newdat<-test %>% 
+    gather("SITE","flow", -date, -month, -year)
+  
+  yrs <- c(3, 5, 10)
+  
+  final <- NULL  
+  for (i in 1:nrow(sites)){
+    
+    # cat(i, '\t')
+    
+    rw <- sites[i, ]
+    site <- rw$SITE
+    
+    # date objects
+    dt <- paste(rw$endyr, rw$endmn, rw$enddy, sep = '-') %>% 
+      ymd
+    dtpri <- dt - (yrs*(12 * 30.4)) 
+    
+    # flow slices
+    flows <- newdat %>% 
+      filter(SITE %in% site)
+    
+    rbis <- sapply(dtpri, function(x){
+      
+      if(x < min(flows$date))
+        return(NA)
+      
+      flosel <- flows %>% 
+        filter(date <= dt & date >= x) %>% 
+        pull(flow) 
+      
+      rbiout <- sum(abs(diff(flosel)))/sum(flosel)
+      
+      # for zero flow
+      if(is.nan(rbiout)) 
+        rbiout <- 0
+      
+      return(rbiout)
+      
+    })
+    
+    final <- rbind(final, rbis)
+    
+  }
+  
+  out <- cbind(sites, final) %>% 
+    rename(
+      `3yrRBI` = `1`,
+      `5yrRBI` = `2`,
+      `10yrRBI` = `3`
+    )
+  
+  return(out)
+  
+}
+
+######
+#' Richard Baker index, all years
+#' 
+#' @param q formatted flow data as output from konrad_fun with input as true
+#' @param sites formatted flow data as output from konrad_fun with input as true
+rbiall_fun <- function(q, sites){
+  
+  # richards baker index all years
+  
+  # get sites with flow data
+  sites <- sites %>% 
+    filter(staid %in% names(q))
+  
+  test<-q
+  test$date<-row.names(q)
+  test$month<-month(test$date)
+  test$year<-year(test$date)
+  
+  sites<-sites[,c(1,5,6,7)]
+  sites<-unique(sites)
+  names(sites)[1]<-"SITE"
+  
+  #not sure if this is right because stable streams were given high values and vice versa..
+  out <- test %>% 
+    gather("SITE","flow", -date, -month, -year) %>% 
+    group_by(SITE) %>% 
+    summarize(rbi = sum(abs(diff(flow)))/sum(flow)) %>% 
+    ungroup %>% 
+    mutate(SITE = as.numeric(SITE))
+  
+  return(out)
+  
+}
+
+######
+#' get storm peaks
+#'
+#' @param q formatted flow data as output from konrad_fun with input as true
+#' @param sites formatted flow data as output from konrad_fun with input as true
+strm_fun <- function(q, sites){
+  browser()
+  # filter sites by those with flow
+  sites <- sites %>% 
+    filter(staid %in% names(q))
+  
+  test<-q
+  test$date<-row.names(q)
+  test$month<-month(test$date)
+  test$year<-year(test$date)
+  
+  sites<-sites[,c(1,5,6,7)]
+  sites<-unique(sites)
+  names(sites)[1]<-"SITE"
+  
+  
+  #make flow in long format and then group by location, year, month
+  
+  newdat<-test %>% 
+    gather("SITE","flow", -date, -month, -year)
+  
+  #storm frequency
+  
+  #calculating x-year storm magnitude
+  #10 year flow: avg of three highest peaks in 3o yr record
+  #5 year flow: avg of 6 highest peaks in 30 year record
+  #2 year flow: avg of 15 highest peaks in 30 year record
+  
+  
+  # Time since last 2,5, and 10 year storms 
+  # Calculate days from date of species observation to the most recent storm.
+  
+  #no need to rerun anything, just run code here
+  
+  strmpks <- newdat %>%
+    group_by(SITE) %>% 
+    nest %>% 
+    mutate(
+      strms = map(data, function(x){
+        
+        # get storm peaks
+        pks <- x %>% 
+          mutate(
+            date = ymd(date),
+            peaks = c(diff(-flow), NA),
+            peaks = c(NA, diff(sign(peaks)))
+          ) %>% 
+          filter(peaks == 2) %>% 
+          arrange(-flow) %>% 
+          pull(flow)
+        
+        # get magniude of storm types
+        tenyr <- mean(pks[1:3])
+        fivyr <- mean(pks[4:9])
+        twoyr <- mean(pks[10:24])
+        
+        # format output
+        out <- data.frame(tenyr = tenyr, fivyr = fivyr, twoyr = twoyr)
+        
+        return(out)
+        
+      })
+    ) %>% 
+    select(-data) %>% 
+    unnest %>% 
+    gather('strm', 'mags', -SITE) %>% 
+    mutate(SITE = as.numeric(SITE))
+  
+  toiter <- sites %>% 
+    left_join(strmpks, by = 'SITE')
+  
+  final <- NULL
+  
+  for(i in 1:nrow(toiter)){
+    
+    # cat(i, '\n')
+    
+    # get row to evaluate
+    rw <- toiter[i, ]
+    site <- rw$SITE
+    strm <- rw$strm
+    
+    # date objects
+    dt <- paste(rw$endyr, rw$endmn, rw$enddy, sep = '-') %>% 
+      ymd
+    
+    # pull out flow for the station before and up to observation date
+    flows <- newdat %>% 
+      filter(SITE %in% site) %>% 
+      filter(date <= dt)
+    
+    if(strm == 'tenyr'){
+      
+      # find index when flow was above or equal to storm mag
+      strmind <- which(flows$flow >= rw$mags)[1]
+      
+    } else {
+      
+      magspri <- toiter[i - 1, 'mags']
+      
+      # find index when flow was above or equal to storm mag
+      strmind <- rev(which(flows$flow >= rw$mags & flows$flow < magspri))[1]
+      
+    }
+    
+    # if none found, NA, otherwise, count back number of days
+    if(is.na(strmind)) 
+      dys <- NA
+    else 
+      dys <- nrow(flows) - strmind
+    
+    # cat('\t', as.character(rw), '\n')
+    # cat('\t', as.character(flows[strmind, ]),'\n')
+    # cat('\t', dys, '\n')
+    
+    # append to output
+    final <- c(final, dys)
+    
+  }
+  
+  out <- toiter %>% 
+    mutate(
+      cnts = final
+    ) %>% 
+    select(-mags) %>% 
+    spread(strm, cnts)
+  
+  return(out)
+  
+}
+
+######
+#' Process and cmbine additional metrics output
+#' 
+#' @param q formatted flow data as output from konrad_fun with input as true
+#' @param sites formatted flow data as output from konrad_fun with input as true
+addlmet_fun <- function(q, sites){
+  
+  ##
+  # prcoess metrics
+
+  mofl <- mofl_fun(q, sites)
+  rbiyrs <- rbiyrs_fun(q, sites)
+  rbiall <- rbiall_fun(q, sites)
+  strm <- strm_fun(q, sites)
+  
+  # combine output
+  out <- strm %>% 
+    left_join(rbiyrs, by = c("SITE", "endyr", "endmn", "enddy")) %>% 
+    left_join(rbiall, by = "SITE") %>% 
+    left_join(mofl, by = c("SITE", "endyr", "endmn")) %>% 
+    unite('date', endmn, enddy, endyr, sep = '/') %>% 
+    mutate(date = mdy(date)) %>% 
+    rename(stid = SITE)
+
   return(out)
   
 }

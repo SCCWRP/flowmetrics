@@ -210,6 +210,22 @@ kradprecipmet <- do.call('rbind', res) %>%
 save(kradprecipmet, file = 'data/kradprecipmet.RData', compress = 'xz')
 
 ######
+# estimate additional metrics, not Konrad
+
+data(bsext)
+data(flowmet)
+
+# select master ID
+ID <- unique(flowmet$COMID) %>% 
+  sort
+
+inps <- konradfun(id = ID, flowin = bsext, subnm = 'all', inps = T)
+q <- inps$q
+sites <- inps$sites
+
+addlmet <- addlmet_fun(q, sites)
+
+######
 # random forest models of flow metrics, performance
 
 data(flowmet)
