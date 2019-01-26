@@ -49,7 +49,7 @@ data(comid_pnts)
 comid_sel <- comid_pnts %>% 
   st_transform(decprj)
 
-# lat and lon
+# lat and lon bounding box
 # lats <- readLines('L:/Flow ecology and climate change_ES/Data/RawData/Lat.dat') %>% 
 #   strsplit('\\s+') %>% 
 #   unlist %>% 
@@ -121,7 +121,7 @@ bsext <- res %>%
     date = gsub('^.*\\_([0-9]+)\\.h5$', '\\1', name),
     date = lubridate::ymd(date)
   ) %>% 
-  select(date, COMID, dly_prp)
+  dplyr::select(date, COMID, dly_prp)
 save(bsext, file = 'data/bsext.RData', compress = 'xz')
 
 ######
