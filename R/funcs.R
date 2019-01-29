@@ -7,7 +7,7 @@
 #' @param subnm metric types as 3, 5, 10, or all years
 #' @param inps logical to return q and sites objects for additional metrics
 konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all'), inps = FALSE){
-  
+
   # check arg  
   subnm <- match.arg(subnm)
   
@@ -21,7 +21,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   
   # create site file, all
   sitefile_create <- data.frame(
-    "stid" = ID,
+    "stid" = names(qin_create),
     "styr" = as.numeric(format(qin_create[366,1], "%Y")),
     "stmn" = as.numeric(format(qin_create[1,1], "%m")),
     "stdy" = as.numeric(format(qin_create[1,1], "%d")),
@@ -48,7 +48,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
     
     #Create "sitefile"
     sitefile_create<- data.frame(
-      "stid" = ID,
+      "stid" = xyr$COMID,
       "styr" = NA,
       "stmn" = as.numeric(month(xyr$date)),
       "stdy" = as.numeric(day(xyr$date)),
@@ -493,7 +493,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   
   # combine output
   out <- cbind(sitefile_create, qsum) %>% 
-    select(-styr, -stmn, -stdy, -minyr, -mindays, -lowflowyear, -Site, -Years, -StartWY, -EndWY) %>% 
+    dplyr::select(-styr, -stmn, -stdy, -minyr, -mindays, -lowflowyear, -Site, -Years, -StartWY, -EndWY) %>% 
     unite('date', endmn, enddy, endyr, sep = '/') %>% 
     mutate(
       date = mdy(date), 
@@ -511,11 +511,11 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
 #' @param q formatted flow data as output from konrad_fun with input as true
 #' @param sites formatted flow data as output from konrad_fun with input as true 
 mofl_fun <- function(q, sites){
-  
+
   # get sites that have flow
   sites <- sites %>% 
     filter(staid %in% names(q))
-  
+ 
   test<-q
   test$date<-row.names(q)
   test$month<-month(test$date)
@@ -567,7 +567,7 @@ mofl_fun <- function(q, sites){
       mutate(month = month(month, label = T)) %>% 
       arrange(month) %>% 
       ungroup %>% 
-      select(month, flow) %>% 
+      dplyr::select(month, flow) %>% 
       spread(month, flow)
     
     out <- rbind(out, flows)
@@ -700,7 +700,7 @@ rbiall_fun <- function(q, sites){
 #' @param q formatted flow data as output from konrad_fun with input as true
 #' @param sites formatted flow data as output from konrad_fun with input as true
 strm_fun <- function(q, sites){
-  browser()
+
   # filter sites by those with flow
   sites <- sites %>% 
     filter(staid %in% names(q))
@@ -762,7 +762,7 @@ strm_fun <- function(q, sites){
         
       })
     ) %>% 
-    select(-data) %>% 
+    dplyr::select(-data) %>% 
     unnest %>% 
     gather('strm', 'mags', -SITE) %>% 
     mutate(SITE = as.numeric(SITE))
@@ -823,7 +823,7 @@ strm_fun <- function(q, sites){
     mutate(
       cnts = final
     ) %>% 
-    select(-mags) %>% 
+    dplyr::select(-mags) %>% 
     spread(strm, cnts)
   
   return(out)
@@ -833,9 +833,18 @@ strm_fun <- function(q, sites){
 ######
 #' Process and cmbine additional metrics output
 #' 
-#' @param q formatted flow data as output from konrad_fun with input as true
-#' @param sites formatted flow data as output from konrad_fun with input as true
-addlmet_fun <- function(q, sites){
+#' @param id vector of site IDs, used to filter flowin
+#' @param flowin actual flow data, for qin_create
+#' @param dtstrt starting date, for sitefile_create, corrected by subnm
+#' @param dtend ending date, for sitefile_create
+#' @param subnm metric types as 3, 5, 10, or all years
+addlmet_fun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all')){
+  
+  # get qin, sitefile from konrad
+  subnm <- match.arg(subnm)
+  inps <- konradfun(id = id, flowin = flowin, dtstrt = dtstrt, dtend = dtend, subnm = subnm, inps = T)
+  q <- inps$q
+  sites <- inps$sites
   
   ##
   # prcoess metrics
@@ -844,16 +853,21 @@ addlmet_fun <- function(q, sites){
   rbiyrs <- rbiyrs_fun(q, sites)
   rbiall <- rbiall_fun(q, sites)
   strm <- strm_fun(q, sites)
-  
+
   # combine output
   out <- strm %>% 
-    left_join(rbiyrs, by = c("SITE", "endyr", "endmn", "enddy")) %>% 
-    left_join(rbiall, by = "SITE") %>% 
-    left_join(mofl, by = c("SITE", "endyr", "endmn")) %>% 
+    full_join(rbiyrs, by = c("SITE", "endyr", "endmn", "enddy")) %>% 
+    full_join(rbiall, by = "SITE") %>% 
+    full_join(mofl, by = c("SITE", "endyr", "endmn")) %>% 
     unite('date', endmn, enddy, endyr, sep = '/') %>% 
-    mutate(date = mdy(date)) %>% 
-    rename(stid = SITE)
-
+    mutate(
+      date = mdy(date),
+      ktype = subnm
+      ) %>% 
+    rename(stid = SITE) %>% 
+    arrange(stid, date) %>% 
+    gather('met', 'val', -stid, -date, -ktype)
+  
   return(out)
   
 }
