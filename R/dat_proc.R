@@ -125,6 +125,9 @@ bsext <- res %>%
 save(bsext, file = 'data/bsext.RData', compress = 'xz')
 
 ######
+# get precip metrics for predictive modelling
+
+##
 # estimate Konrad metrics from extracted precip data above
 
 data(bsext)
@@ -138,19 +141,20 @@ ID <- unique(flowmet$COMID) %>%
 cores <- detectCores() - 2
 cl <- makeCluster(cores)
 registerDoParallel(cl)
+strt <- Sys.time()
 
-#prep site file data
+# estimate konrad, ~2 hours
 res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
   
   konradfun(id = ID, flowin = bsext, subnm = i)
   
 }
+Sys.time() - strt
 
 kradprecipmet <- do.call('rbind', res) %>% 
   rename(COMID = stid)
-save(kradprecipmet, file = 'data/kradprecipmet.RData', compress = 'xz')
 
-######
+##
 # estimate additional metrics, not Konrad
 
 data(bsext)
@@ -160,11 +164,68 @@ data(flowmet)
 ID <- unique(flowmet$COMID) %>% 
   sort
 
-inps <- konradfun(id = ID, flowin = bsext, subnm = 'all', inps = T)
-q <- inps$q
-sites <- inps$sites
+# setup parallel backend
+cores <- detectCores() - 2
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+strt <- Sys.time()
 
-addlmet <- addlmet_fun(q, sites)
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  
+  out <- addlmet_fun(id = ID, flowin = bsext, subnm = i)
+  return(out)
+  
+}
+Sys.time() - strt
+
+addlprecipmet <- do.call('rbind', res) %>% 
+  rename(COMID = stid)
+
+##
+# combine additional metrics and filter out extra stuff
+
+precipmet <- rbind(kradprecipmet, addlprecipmet) 
+
+flomeans <- precipmet %>% 
+  filter(met %in% c('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')) %>% 
+  filter(ktype %in% c('all', 'x3'))  %>% 
+  dplyr::select(-ktype)
+
+strms <- precipmet %>% 
+  filter(met %in% c('twoyr', 'fivyr', 'tenyr')) %>% 
+  filter(ktype %in% c('all', 'x3'))  %>% 
+  dplyr::select(-ktype)
+
+rbi <- precipmet %>% 
+  filter(grepl('RBI|rbi', met)) %>% 
+  filter(ktype %in% c('all', 'x3')) %>% 
+  mutate(
+    met = gsub('yr', '_', met),
+    met = ifelse(grepl('\\_', met), paste0('x', met), met)
+    ) %>% 
+  dplyr::select(-ktype)
+  
+# remove flo means, storm events, rbi because above used instead
+# make complete cases to fill 'all' metrics to start dates
+# remove R10 metrics from Konrad, didnt process
+precipmet <- precipmet %>% 
+  filter(!met %in% c('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')) %>% 
+  filter(!met %in% c('twoyr', 'fivyr', 'tenyr')) %>% 
+  filter(!grepl('RBI|rbi', met)) %>% 
+  unite('met', ktype, met, sep = '_') %>% 
+  bind_rows(flomeans, strms, rbi) %>% 
+  complete(COMID, date, met) %>% 
+  group_by(COMID, met) %>% 
+  mutate(
+    val = ifelse(grepl('^all', met), na.omit(val), val)
+  ) %>% 
+  na.omit %>%
+  spread(met, val)
+
+save(precipmet, file = 'data/precipmet.RData', compress = 'xz')
+
 
 ######
 # random forest models of flow metrics, performance

@@ -21,7 +21,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   
   # create site file, all
   sitefile_create <- data.frame(
-    "stid" = names(qin_create),
+    "stid" = as.numeric(names(qin_create)[-1]),
     "styr" = as.numeric(format(qin_create[366,1], "%Y")),
     "stmn" = as.numeric(format(qin_create[1,1], "%m")),
     "stdy" = as.numeric(format(qin_create[1,1], "%d")),
@@ -831,7 +831,7 @@ strm_fun <- function(q, sites){
 }
 
 ######
-#' Process and cmbine additional metrics output
+#' Process and combine additional metrics output
 #' 
 #' @param id vector of site IDs, used to filter flowin
 #' @param flowin actual flow data, for qin_create
@@ -845,7 +845,7 @@ addlmet_fun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', s
   inps <- konradfun(id = id, flowin = flowin, dtstrt = dtstrt, dtend = dtend, subnm = subnm, inps = T)
   q <- inps$q
   sites <- inps$sites
-  
+
   ##
   # prcoess metrics
 

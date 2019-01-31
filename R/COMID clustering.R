@@ -120,14 +120,6 @@ NHDpredict<-select(NHDpredict, -CatAreaSqKm.x, -WsAreaSqKm.x, -CatAreaSqKm.y, -W
 comid_atts <- NHDpredict
 save(comid_atts, file = 'data/comid_atts.RData', compress = 'xz')
 
-# this is a point shapefile of all COMIDs that Jenny made
-# read it in, extract relevant comids, save
-comid_pnts <- st_read('L:/Flow ecology and climate change_ES/Jenny/AirTemp/COMID_to_Point.shp') %>% 
-  dplyr::select(COMID) %>% 
-  filter(COMID %in% comid_atts$COMID) %>% 
-  st_zm()
-save(comid_pnts, file = 'data/comid_pnts.RData', compress = 'xz')
-
 #write shapefile to folder
 # st_write(NHDpredict, "//172.16.1.5/Data/MarcusBeck/FromJenny/COMID attributes.shp")
 
