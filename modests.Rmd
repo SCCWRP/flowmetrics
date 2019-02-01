@@ -3,13 +3,13 @@ title: "Model performance and predictions for flow metrics"
 author: ""
 output: 
   html_document:
-    css: kable.css
-    includes: 
-      in_header: cssloaders_in_header.html
+  css: kable.css
+includes: 
+  in_header: cssloaders_in_header.html
 self_contained: yes
 runtime: shiny
 ---
-
+  
 ```{r, message = F, warning = F, echo = F}
 library(knitr)
 
@@ -24,7 +24,7 @@ library(leaflet)
 library(sf)
 library(shinycssloaders)
 
-data(flowmetprf)
+data(flowmetprf_old)
 data(flowmetest)
 data(dayprcp)
 data(yrprcp)
@@ -39,16 +39,16 @@ prcp <- dayprcp %>%
 
 # complete performance table
 dattaball <- flowmetprf %>% 
-    select(-data, -impvars) %>% 
-    gather('prf', 'val', rmse, rsqr) %>% 
-    unite('prf', set, prf, sep = ' ') %>% 
-    mutate(val = round(val, 2)) %>% 
-    spread(prf, val) %>% 
-    arrange(var, mo, catprcp, modtyp)
+  select(-data, -impvars) %>% 
+  gather('prf', 'val', rmse, rsqr) %>% 
+  unite('prf', set, prf, sep = ' ') %>% 
+  mutate(val = round(val, 2)) %>% 
+  spread(prf, val) %>% 
+  arrange(var, mo, catprcp, modtyp)
 ```
 
 Precipitation from 1985 to 2014:
-```{r, fig.height = 3, fig.width = 9}
+  ```{r, fig.height = 3, fig.width = 9}
 p <- ggplot(prcp, aes(x = date, y = prcpmm, colour = catprcp, group= interaction(catprcp, yr))) + 
   geom_path() + 
   theme_bw(base_family = 'serif', base_size = 16) + 
@@ -66,12 +66,12 @@ p
 column(12, 
        column(3, 
               selectInput('metsel', 'Select metric:', choices = sort(unique(flowmetprf$var)))
-              ),
+       ),
        
        column(3, 
               selectInput('prcpsel', 'Select precipication:', choices = c('dry', 'ave', 'wet'))
-              )
        )
+)
 ```
 
 ```{r reactives}
@@ -83,7 +83,7 @@ datsel <- reactive({
   prcpsel <- input$prcpsel
   modsel <- input$modsel
   fldsel <- input$fldsel
-
+  
   out <- flowmetprf %>% 
     filter(var %in% metsel) %>% 
     filter(catprcp %in% prcpsel) %>% 
@@ -99,7 +99,7 @@ dattab <- reactive({
   
   # input
   datsel <- datsel()
-
+  
   out <- datsel %>% 
     select(mo, set, rmse, rsqr) %>% 
     gather('var', 'val', rmse, rsqr) %>% 
@@ -123,14 +123,14 @@ datimp <- reactive({
     out <- 'all'
   else 
     out <- datsel %>% 
-      pull(impvars) %>%
-      unlist %>% 
-      unique %>% 
-      sort %>% 
-      paste(collapse = ', ')
+    pull(impvars) %>%
+    unlist %>% 
+    unique %>% 
+    sort %>% 
+    paste(collapse = ', ')
   
   return(out)
-    
+  
 })
 
 # plot
@@ -159,7 +159,7 @@ output$datplo <- renderPlot({
 
 # map
 output$map <- renderLeaflet({
-
+  
   # input
   metsel <- input$metsel
   prcpsel <- input$prcpsel
@@ -173,18 +173,18 @@ output$map <- renderLeaflet({
   
   # cols
   pal <- colorNumeric(
-      palette = rev(RColorBrewer::brewer.pal(11, 'Spectral')),
-      na.color = 'grey',
-      domain = range(toplo[[colsel]], na.rm = T)
-      )
-
+    palette = rev(RColorBrewer::brewer.pal(11, 'Spectral')),
+    na.color = 'grey',
+    domain = range(toplo[[colsel]], na.rm = T)
+  )
+  
   out <- mapview(toplo, homebutton = F, label = round(toplo[[colsel]], 2), color = pal(toplo[[colsel]])) %>% 
     .@map %>% 
     removeMouseCoordinates() %>% 
     addLegend("topright", pal = pal, values = toplo[[colsel]],
-                title = colsel,
-                opacity = 1
-      )
+              title = colsel,
+              opacity = 1
+    )
   
   return(out)
   
@@ -199,18 +199,18 @@ output$map <- renderLeaflet({
 column(12, 
        column(3, 
               selectInput('modsel', 'Select model type:', choices = list(full = 'prd', selected = 'prdimp'))
-              ),
+       ),
        
        column(3,
               selectInput('fldsel', 'Select fold:', choices = c(1:5))
-              )
        )
+)
 ```
 
 ```{r}
 renderUI({
   HTML(knitr::kable(dattab(), caption = 'Summary statistics for selection.', format = 'html') %>% 
-    kable_styling(full_width = T, font_size = 14))
+         kable_styling(full_width = T, font_size = 14))
 })
 ```
 
@@ -232,17 +232,16 @@ renderDataTable(dattaball)
 column(12, 
        column(3, 
               selectInput('mosel', 'Select month:', choices = sort(unique(flowmetprf$mo)))
-              ),
+       ),
        
        column(3, 
               selectInput('colsel', 'Select value to show:', choices = list(`predicted` = 'est', `CV` = 'cv'))
-              )
        )
+)
 ```
 
 ```{r}
 leafletOutput('map', height = 600) %>% withSpinner()
 ```
-
 
 
