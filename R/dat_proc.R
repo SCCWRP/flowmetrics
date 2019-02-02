@@ -17,7 +17,7 @@ source('R/funcs.R')
 # flow metrics to predict
 
 flowmet <- read.csv('raw/final_metrics.csv', stringsAsFactors = F) %>% 
-  dplyr::select(SITE.x, COMID, date, tenyr, twoyr, X5yrRBI, x3_SFR, all_R10D.5, x3_QmaxIDR, x5_RecessMaxLength, all_LowDur, x5_HighDur, x3_HighDur, x10_HighNum, all_MedianNoFlowDays, all_Qmax, all_Q99) %>% 
+  dplyr::select(-X) %>% 
   rename(
     watershedID = SITE.x
   ) %>% 
@@ -276,20 +276,24 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
   mo <- tomod[rw, 'mo']
   data <- tomod$data[[rw]]
   
+  # rf mod name
+  mdnm <- paste0(var[[1]], '-mo', mo[[1]])
+  
   # model formula, all
   frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
     paste(collapse = ' + ') %>% 
     paste0('val ~ ', .) %>% 
     formula
   
-  # folds
-  flds <- unique(data$folds)
+  # # folds
+  # flds <- unique(data$folds)
+  flds <- 1
   
   # pre-allocated output
   out <- vector('list', length = length(flds))
   
   # loop through folds
-  for(fld in flds){
+  for(fld in c(1)){
     
     # calibration data
     calset <- data %>% 
@@ -319,6 +323,10 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
     # create model, from top ten
     modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
     
+    # save model for later
+    assign(mdnm, modimp)
+    save(list = mdnm, file = paste0('data/rfmods/', mdnm, '.RData'), compress = 'xz')
+
     # oob predictions for mod, modimp
     calsetid <- calset %>% 
       mutate(id = 1:nrow(.)) %>% 
@@ -378,7 +386,7 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
   }
   
   # combine all fold data
-  out <- out %>% 
+  out <- out[1] %>% 
     enframe('fld') %>% 
     unnest
   
