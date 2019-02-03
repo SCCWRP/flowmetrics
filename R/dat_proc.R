@@ -276,9 +276,6 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
   mo <- tomod[rw, 'mo']
   data <- tomod$data[[rw]]
   
-  # rf mod name
-  mdnm <- paste0(var[[1]], '-mo', mo[[1]])
-  
   # model formula, all
   frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
     paste(collapse = ' + ') %>% 
@@ -286,14 +283,13 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
     formula
   
   # # folds
-  # flds <- unique(data$folds)
-  flds <- 1
+  flds <- unique(data$folds)
   
   # pre-allocated output
   out <- vector('list', length = length(flds))
   
   # loop through folds
-  for(fld in c(1)){
+  for(fld in flds){
     
     # calibration data
     calset <- data %>% 
@@ -304,7 +300,8 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
       filter(folds %in% fld)
     
     # create model
-    mod <- randomForest(frm, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
+    set.seed(123)
+    mod <- randomForest(frm, data = calset, ntree = 500, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
     
     # top ten important variables
     impvars <- mod$importance %>% 
@@ -321,12 +318,9 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
       formula
     
     # create model, from top ten
-    modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
+    set.seed(123)
+    modimp <- randomForest(frmimp, data = calset, ntree = 500, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
     
-    # save model for later
-    assign(mdnm, modimp)
-    save(list = mdnm, file = paste0('data/rfmods/', mdnm, '.RData'), compress = 'xz')
-
     # oob predictions for mod, modimp
     calsetid <- calset %>% 
       mutate(id = 1:nrow(.)) %>% 
@@ -386,7 +380,7 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
   }
   
   # combine all fold data
-  out <- out[1] %>% 
+  out <- out %>% 
     enframe('fld') %>% 
     unnest
   
