@@ -17,7 +17,7 @@ source('R/funcs.R')
 # flow metrics to predict
 
 flowmet <- read.csv('raw/final_metrics.csv', stringsAsFactors = F) %>% 
-  dplyr::select(-X) %>% 
+  dplyr::select(-X, -SITE.y) %>% 
   rename(
     watershedID = SITE.x
   ) %>% 
