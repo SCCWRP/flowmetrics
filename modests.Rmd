@@ -34,6 +34,24 @@ dattaball <- flowmetprf %>%
     mutate(val = round(val, 2)) %>% 
     spread(prf, val) %>% 
     arrange(var, mo, modtyp)
+
+# fold averaged performance table
+dattabagg <- dattaball %>% 
+  filter(modtyp %in% 'prdimp') %>% 
+  gather('prf', 'val', `cal rmse`, `cal rsqr`, `val rmse`, `val rsqr`) %>% 
+  group_by(var, mo, prf) %>% 
+  summarise(val = mean(val, na.rm = T)) %>% 
+  spread(prf, val)
+
+# fold and moth averaged performance table
+dattabaggmo <- dattaball %>% 
+  filter(modtyp %in% 'prdimp') %>% 
+  gather('prf', 'val', `cal rmse`, `cal rsqr`, `val rmse`, `val rsqr`) %>% 
+  group_by(var, mo, prf) %>% 
+  summarise(val = mean(val, na.rm = T)) %>% 
+  group_by(var, prf) %>% 
+  summarise(val = mean(val, na.rm = T)) %>% 
+  spread(prf, val)
 ```
 
 ```{r selectors}
@@ -160,4 +178,20 @@ plotOutput('datplo') %>% withSpinner()
 
 ```{r}
 renderDataTable(dattaball)
+```
+
+## Fold averaged performance
+
+Results are for models based on top ten predictor variables.  
+
+```{r}
+renderDataTable(dattabagg)
+```
+
+## Fold and month averaged performance
+
+Results are for models based on top ten predictor variables.  
+
+```{r}
+renderDataTable(dattabaggmo)
 ```
