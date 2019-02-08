@@ -3,7 +3,7 @@
 #' @param id vector of site IDs, used to filter flowin
 #' @param flowin actual flow data, for qin_create
 #' @param dtstrt starting date, for sitefile_create, corrected by subnm
-#' @param dtend ending date, for sitefile_create
+#' @param dtend ending date, for sitefile_create, can also include multiple dates
 #' @param subnm metric types as 3, 5, 10, or all years
 #' @param inps logical to return q and sites objects for additional metrics
 konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all'), inps = FALSE){
@@ -11,9 +11,12 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   # check arg  
   subnm <- match.arg(subnm)
   
+  if(subnm == 'all' & any(duplicated(id)))
+    stop('no duplicated id values of subnm = "all"')
+
   # qin_create
   qin_create <- flowin %>% 
-    filter(COMID %in% ID) %>%
+    filter(COMID %in% id) %>%
     spread(COMID, dly_prp) %>% 
     dplyr::rename(Date = date) %>% 
     data.frame
@@ -39,12 +42,29 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
     yrfct <- gsub('^x', '', subnm) %>% 
       as.numeric
     
-    dtstrt <- as.Date(dtstrt) %m+% years(yrfct)
-    dtend <- as.Date(dtend)
-    
-    # expand grid
-    xyr<-seq.Date(from = dtstrt, to = dtend, "quarter") %>% 
-      crossing(COMID = ID, date = .)
+    # for generic site file
+    if(length(dtend) == 1){
+      
+      dtstrt <- as.Date(dtstrt) %m+% years(yrfct)
+      dtend <- as.Date(dtend)
+
+      # expand grid
+      xyr<-seq.Date(from = dtstrt, to = dtend, "quarter") %>% 
+        crossing(COMID = id, date = .)
+   
+    # otherwise use input
+    } else {
+
+      # need to filter ID, dtend by those in limits of flowin
+      mindt <- min(flowin$date) %m+% years(yrfct)
+      ID <- ID[dtend >= mindt]
+      dtend <- dtend[dtend >= mindt]
+      
+      xyr <- tibble(
+        COMID = ID, date = dtend
+      ) 
+      
+    }
     
     #Create "sitefile"
     sitefile_create<- data.frame(
@@ -60,11 +80,11 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
       "lowflowyear" = 4)
     sitefile_create<-mutate(sitefile_create, styr=endyr - yrfct)  
     sitefile_create$stid<-as.numeric(sitefile_create$stid)
-    
+
   }
   
   #####################Begin Konrad Script###################################
-  
+
   #flowmetrics
   #An R function used to calculate streamflow metrics from a table of daily streamflow.
   #
@@ -406,7 +426,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   month_highdur[,,s]=month_highdur[,,s] * monthinanalysis[,,s]
   month_noflow[,,s]=month_noflow[,,s] * monthinanalysis[,,s]
   }   #CLOSE SITE LOOP
-  
+
   #SET ANNUAL VALUES FOR YEARS NOT ANALYZED TO NA
   for (a in 1:length(annual_metrics)) {tmp=get(annual_metrics[a])
   assign(annual_metrics[a], tmp*wysinanalysis)
@@ -836,7 +856,7 @@ strm_fun <- function(q, sites){
 #' @param id vector of site IDs, used to filter flowin
 #' @param flowin actual flow data, for qin_create
 #' @param dtstrt starting date, for sitefile_create, corrected by subnm
-#' @param dtend ending date, for sitefile_create
+#' @param dtend ending date, for sitefile_create, can be multiple
 #' @param subnm metric types as 3, 5, 10, or all years
 addlmet_fun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all')){
   
