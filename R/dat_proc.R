@@ -13,6 +13,17 @@ library(raster)
 
 source('R/funcs.R')
 
+##
+# all COMID streamcat attributes, sf polyline
+
+# created in R/COMID clustering.R
+# column names are the same as below, just expanded
+data(comid_atts)
+
+comid_attsall <- st_read('../COMID attributes.shp')
+names(comid_attsall) <- names(comid_atts)
+save(comid_attsall, file = 'data/comid_attsall.RData', compress = 'xz')
+
 ## 
 # observed bio data
 
@@ -25,7 +36,8 @@ biodat <- read.csv('raw/FlowMetrics_VariableSelection.csv', stringsAsFactors = F
   mutate(
     date = ymd(date)
   ) %>% 
-  filter(!is.na(date))
+  filter(!is.na(date)) %>% 
+  unique
 
 save(biodat, file = 'data/biodat.RData', compress = 'xz')
 
@@ -260,6 +272,7 @@ comid_atts <- comid_atts %>%
 # setup data to model
 # includes folds
 tomod <- flowmet %>% 
+  dplyr::select(-tenyr) %>% 
   mutate(
     mo = month(date)
   ) %>% 
