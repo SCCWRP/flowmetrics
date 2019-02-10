@@ -80,7 +80,7 @@ toproc <- biodatcomid %>%
 ID <- toproc$COMID
 dtsls <- toproc$dtsl
 
-setup parallel backend
+# setup parallel backend
 cores <- detectCores() - 2
 cl <- makeCluster(cores)
 registerDoParallel(cl)

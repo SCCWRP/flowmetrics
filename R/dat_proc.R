@@ -272,7 +272,7 @@ comid_atts <- comid_atts %>%
 # setup data to model
 # includes folds
 tomod <- flowmet %>% 
-  dplyr::select(-tenyr) %>% 
+  dplyr::select(-tenyr) %>% # do not model tenyr
   mutate(
     mo = month(date)
   ) %>% 
@@ -305,8 +305,8 @@ modsprf <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse'
   mo <- tomod[rw, 'mo']
   data <- tomod$data[[rw]]
   
-  # model formula, all
-  frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
+  # model formula, all except tenyr
+  frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val', 'tenyr')] %>% 
     paste(collapse = ' + ') %>% 
     paste0('val ~ ', .) %>% 
     formula
