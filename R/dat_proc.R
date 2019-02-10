@@ -27,16 +27,11 @@ save(comid_attsall, file = 'data/comid_attsall.RData', compress = 'xz')
 ## 
 # observed bio data
 
-biodat <- read.csv('raw/FlowMetrics_VariableSelection.csv', stringsAsFactors = F) %>% 
-  dplyr::select(name, COMID, year, month) %>% 
-  mutate(
-    dy = 1 
-  ) %>% 
-  unite('date', year, month, dy, sep = '-') %>% 
+biodat <- read.csv('raw/species_list_extrapolation.csv', stringsAsFactors = F) %>% 
+  dplyr::select(name, COMID, date) %>% 
   mutate(
     date = ymd(date)
   ) %>% 
-  filter(!is.na(date)) %>% 
   unique
 
 save(biodat, file = 'data/biodat.RData', compress = 'xz')
