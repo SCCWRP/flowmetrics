@@ -41,7 +41,7 @@ data(bsext)
 # mets <- prfeval %>% 
 #   pull(var)
 
-##
+######
 # pull precip metrics where we have biodata 
 
 # comids where bio was observed, find nearest july date, this is a lookup table
@@ -223,6 +223,7 @@ static <- comid_attsall %>%
 
 # setup data to model
 tomod <- flowmet %>%
+  dplyr::select(-tenyr) %>% # do not model tenyr
   mutate(
     mo = month(date)
   ) %>%
