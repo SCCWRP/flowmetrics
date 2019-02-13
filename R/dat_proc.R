@@ -1,4 +1,5 @@
-######
+# front matter ------------------------------------------------------------
+
 # pre-processing data for prediction of streamflow metrics
 
 library(tidyverse)
@@ -12,6 +13,8 @@ library(h5)
 library(raster)
 
 source('R/funcs.R')
+
+# basic data proc ---------------------------------------------------------
 
 ##
 # all COMID streamcat attributes, sf polyline
@@ -50,7 +53,7 @@ flowmet <- read.csv('raw/final_metrics.csv', stringsAsFactors = F) %>%
 
 save(flowmet, file = 'data/flowmet.RData', compress = 'xz')
 
-######
+##
 # COMID points as sf object, all COMIDs in study area including dammed/urban and no bio data
 
 data(flowmet)
@@ -60,8 +63,8 @@ comid_pnts <- st_read('L:/Flow ecology and climate change_ES/Jenny/AirTemp/COMID
   st_zm()
 save(comid_pnts, file = 'data/comid_pnts.RData', compress = 'xz')
 
-######
-# extract hires simulated precip data by COMID pnts
+# extract baseline precip from simulated data -----------------------------
+
 
 utmprj <- "+proj=utm +zone=11 +datum=NAD83 +units=m +no_defs"
 decprj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
@@ -147,8 +150,8 @@ bsext <- res %>%
   dplyr::select(date, COMID, dly_prp)
 save(bsext, file = 'data/bsext.RData', compress = 'xz')
 
-######
-# get precip metrics for predictive modelling
+# get precipitation metrics at quarterly intervals  -----------------------
+# this is done using extracted sim data, used for rf models below
 
 ##
 # estimate Konrad metrics from extracted precip data above
@@ -253,8 +256,8 @@ precipmet <- precipmet %>%
 
 save(precipmet, file = 'data/precipmet.RData', compress = 'xz')
 
-######
-# random forest models of flow metrics, performance
+# get perf of rf models for every flow metric -----------------------------
+# uses precip metrics above
 
 data(flowmet)
 data(comid_atts)
@@ -421,11 +424,16 @@ flowmetprf <- tomod %>%
 
 save(flowmetprf, file = 'data/flowmetprf.RData', compress = 'xz')
 
-######
-# pull precip metrics where we have biodata
+# pull precip metrics where we have bio data ------------------------------
 # uses bsext as baseline precip
 # uses biodata to get COMID and dates for pullling precip data
 # biodata limited to max date in bsext and min date in bsext + 3 years (latter is only two records)
+# precip metrics are used below to reconsruct rf models and get flow metric predictions
+
+data(comid_pnts)
+data(biodat)
+data(flowmetprf)
+data(bsext)
 
 # comids where bio was observed, find nearest july date, this is a lookup table
 # max date does not exceed that from simulated baseline precip data
@@ -571,120 +579,139 @@ precipmet <- precipmet %>%
   )
 
 # join to biodatcomid by dtsl
-biodatcomidprecip <- biodatcomid %>% 
+bioprecipmet <- biodatcomid %>% 
   left_join(precipmet, by = c('COMID', 'dtsl'))
 
-# ######
-# # random forest models of flow metrics, predicted
-# 
-# data(flowmet)
-# data(comid_atts)
-# 
-# # remote geometry from comid
-# comid_atts_nogm <- comid_atts %>% 
-#   st_set_geometry(NULL)
-# 
-# # setup data to model
-# # includes folds
-# tomod <- flowmet %>% 
-#   mutate(
-#     mo = month(date)
-#   ) %>% 
-#   group_by(mo) %>% 
-#   mutate(folds = sample(1:5, length(mo), replace = T)) %>% 
-#   ungroup %>% 
-#   gather('var', 'val', -watershedID, -COMID, -date, -mo, -folds) %>% 
-#   left_join(comid_atts, by = 'COMID') %>% 
-#   left_join(precipmet, by = c('COMID', 'date')) %>% 
-#   group_by(var, mo) %>% 
-#   nest
-# 
-# # setup parallel
-# ncores <- detectCores() - 1 
-# cl<-makeCluster(ncores)
-# registerDoParallel(cl)
-# strt<-Sys.time()
-# 
-# # create models for metric predictions
-# modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
-#   
-#   # log
-#   sink('log.txt')
-#   cat(rw, 'of', nrow(tomod), '\n')
-#   print(Sys.time()-strt)
-#   sink()
-#   
-#   # get index selections
-#   var <- tomod[rw, 'var']
-#   mo <- tomod[rw, 'mo']
-#   data <- tomod$data[[rw]]
-#   
-#   # model formula, all
-#   frm <- names(data)[!names(data) %in% c('watershedID', 'COMID', 'date', 'yr', 'folds', 'var', 'val')] %>% 
-#     paste(collapse = ' + ') %>% 
-#     paste0('val ~ ', .) %>% 
-#     formula
-#   
-#   # use only one fold
-#   fld <- 1
-#   
-#   # calibration data
-#   calset <- data %>% 
-#     filter(!folds %in% fld)
-#   
-#   # create model
-#   mod <- randomForest(frm, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
-#   
-#   # top ten important variables
-#   impvars <- mod$importance %>% 
-#     as.data.frame %>% 
-#     tibble::rownames_to_column('var') %>% 
-#     arrange(-`%IncMSE`) %>% 
-#     pull(var) %>% 
-#     .[1:10]
-#     
-#   # new formula, from top ten
-#   frmimp <- impvars %>% 
-#     paste(collapse = '+') %>% 
-#     paste0('val~', .) %>% 
-#     formula
-# 
-#   # create model, from top ten
-#   modimp <- randomForest(frmimp, data = calset, ntree = 1000, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
-#   
-#   # predictions, all comid attributes
-#   prdimp <- predict(modimp, newdata = comid_atts_nogm, predict.all = T)
-#   bnds <- apply(prdimp$individual, 1, function(x) quantile(x, probs = c(0.1, 0.9), na.rm = T))
-#   cv <- apply(prdimp$individual, 1, function(x) sd(x, na.rm = T)/mean(x, na.rm = T))
-# 
-#   # combine output, estimates, lo, hi, cv, dataset
-#   out <- tibble(
-#     COMID = comid_atts_nogm$COMID, 
-#     est = prdimp$aggregate,
-#     lov= bnds[1, ],
-#     hiv= bnds[2, ], 
-#     cv = coef
-#     ) %>% 
-#     mutate(set = ifelse(COMID %in% calset$COMID, 'cal', 'notcal'))
-#   
-#   return(out)
-#   
-# }
-# 
-# # final output
-# flowmetest <- tomod %>% 
-#   dplyr::select(-data) %>% 
-#   bind_cols(., enframe(modsest)) %>% 
-#   dplyr::select(-name) %>% 
-#   unnest(value)
-# 
-# # get comid geometry
-# comid_atts_gm <- comid_atts %>% 
-#   dplyr::select(COMID)
-# 
-# # join geometry
-# flowmetest <- flowmetest %>% 
-#   left_join(comid_atts_gm, by = 'COMID') %>% 
-#   st_as_sf()
-# 
-# save(flowmetest, file = 'data/flowmetest.RData', compress = 'xz')
+save(bioprecipmet, file = 'data/bioprecipmet.RData', compress = 'xz')
+
+
+# Predict flowmetrics where observed bio ----------------------------------
+# uses extracted precip metrics, static streamcat predictors
+# best predictors for rf models above
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(bioprecipmet)
+data(comid_attsall)
+data(comid_atts)
+
+# top predictors for each metric, july only
+# all important predictors across the five folds are combined
+impvarsall <- flowmetprf %>%
+  filter(mo %in% 7) %>%
+  filter(modtyp %in% 'prdimp') %>%
+  filter(set %in% 'val') %>%
+  dplyr::select(-data, -mo, -set, -modtyp, -rmse, -rsqr) %>%
+  group_by(var) %>%
+  nest %>%
+  mutate(
+    impvars = purrr::map(data, function(x) unique(unlist(x$impvars)))
+  ) %>%
+  dplyr::select(-data)
+
+# static predictors
+static <- comid_attsall %>%
+  st_set_geometry(NULL)
+
+# setup data to model
+tomod <- flowmet %>%
+  dplyr::select(-tenyr) %>% # do not model tenyr
+  mutate(
+    mo = month(date)
+  ) %>%
+  group_by(mo) %>% 
+  mutate(folds = sample(1:5, length(mo), replace = T)) %>%
+  ungroup %>%
+  filter(mo %in% 7) %>% 
+  gather('var', 'val', -watershedID, -COMID, -date, -mo, -folds) %>%
+  left_join(comid_atts, by = 'COMID') %>%
+  left_join(precipmet, by = c('COMID', 'date')) %>%
+  group_by(var, mo) %>%
+  nest
+
+# prediction data from bio precipmetrics
+# join with comid_atts_bio_nogm
+biopreddat <- bioprecipmet %>% 
+  left_join(static, by = 'COMID')
+
+# setup parallel
+ncores <- detectCores() - 1
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+strt<-Sys.time()
+
+# create models for metric predictions
+modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
+  
+  # log
+  sink('log.txt')
+  cat(rw, 'of', nrow(tomod), '\n')
+  print(Sys.time()-strt)
+  sink()
+  
+  # get index selections
+  var <- tomod[rw, 'var']
+  mo <- tomod[rw, 'mo']
+  data <- tomod$data[[rw]]
+  
+  # import predicors for the var
+  impvars <- impvarsall %>% 
+    filter(var %in% !!var) %>% 
+    pull(impvars) %>% 
+    unlist
+  
+  # use only one fold
+  fld <- 1
+  
+  # calibration data
+  calset <- data %>%
+    filter(!folds %in% fld)
+  
+  # model formula, from top predictors
+  frmimp <- impvars %>%
+    paste(collapse = '+') %>%
+    paste0('val~', .) %>%
+    formula
+  
+  # create model, from top ten
+  modimp <- randomForest(frmimp, data = calset, ntree = 500, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
+  
+  # data to predict
+  toprd <- biopreddat[, impvars]
+  
+  # predictions, all comid attributes
+  prdimp <- predict(modimp, newdata = toprd, predict.all = T)
+  bnds <- apply(prdimp$individual, 1, function(x) quantile(x, probs = c(0.1, 0.9), na.rm = T))
+  cv <- apply(prdimp$individual, 1, function(x) sd(x, na.rm = T)/mean(x, na.rm = T))
+  
+  # combine output, estimates, lo, hi, cv, dataset
+  out <- tibble(
+    COMID = biopreddat$COMID,
+    date = biopreddat$date, 
+    dtsl = biopreddat$dtsl, 
+    est = prdimp$aggregate,
+    lov= bnds[1, ],
+    hiv= bnds[2, ],
+    cv = cv
+  ) %>%
+    mutate(set = ifelse(COMID %in% calset$COMID, 'cal', 'notcal'))
+  
+  return(out)
+  
+}
+
+# final output
+bioflowmetest <- tomod %>%
+  dplyr::select(-data) %>%
+  bind_cols(., enframe(modsest)) %>%
+  dplyr::select(-name) %>%
+  unnest(value) 
+
+# join with biology (only date, COMID were modelled, species doesn't matter)
+bioflowmetest <- bioflowmetest %>% 
+  left_join(biodat, ., by = c('COMID', 'date')) %>% 
+  dplyr::select(name, COMID, date, var, est) %>% 
+  spread(var, est)
+
+save(bioflowmetest, file = 'data/bioflowmetest.RData', compress = 'xz')
