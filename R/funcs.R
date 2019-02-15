@@ -891,3 +891,135 @@ addlmet_fun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', s
   return(out)
   
 }
+
+######
+#' predict flow metrics from precip metrics and static sreamcat predictors
+#' done by refitting rf model for each flow metric using top predictors (static and precip metrics)
+#' top predictors ided from flow flow metric performance estimates from rf mods calculated separately
+#' then predictions are made for each flow metric from extracted precip metrics for location, dates
+#' 
+#' @param obsflowmet observed flow metric for training rf model 
+#' @param trnprecipmet observed precip metrics for training rf model
+#' @param flowmetprf estimated performance and predicors for rf models for each flow metric
+#' @param prdprecipmet input precip metrics at locations and dates for predicting flow metrics from rf models
+#' @param comid_attsall input static streamcat data at COMIDs for predicting flow metrics from rf models
+#' 
+#' @details Models are fit and metrics predicted, requires setup of parallel backend
+#' 
+flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, comid_attsall){
+
+  # top predictors for each metric, july only
+  # all important predictors across the five folds are combined
+  impvarsall <- flowmetprf %>%
+    filter(mo %in% 7) %>%
+    filter(modtyp %in% 'prdimp') %>%
+    filter(set %in% 'val') %>%
+    dplyr::select(-data, -mo, -set, -modtyp, -rmse, -rsqr) %>%
+    group_by(var) %>%
+    nest %>%
+    mutate(
+      impvars = purrr::map(data, function(x) unique(unlist(x$impvars)))
+    ) %>%
+    dplyr::select(-data)
+  
+  # static predictors
+  static <- comid_attsall %>%
+    st_set_geometry(NULL)
+  
+  # setup data to model
+  tomod <- obsflowmet %>%
+    dplyr::select(-tenyr) %>% # do not model tenyr
+    mutate(
+      mo = month(date)
+    ) %>%
+    group_by(mo) %>% 
+    mutate(folds = sample(1:5, length(mo), replace = T)) %>%
+    ungroup %>%
+    filter(mo %in% 7) %>% 
+    gather('var', 'val', -watershedID, -COMID, -date, -mo, -folds) %>%
+    left_join(comid_attsall, by = 'COMID') %>%
+    left_join(trnprecipmet, by = c('COMID', 'date')) %>%
+    group_by(var, mo) %>%
+    nest
+  
+  # prediction data from the baseline precipmetrics
+  # join with static comid predictors
+  preddat <- prdprecipmet %>% 
+    left_join(static, by = 'COMID')
+  
+  # for log
+  strt <- Sys.time()
+  
+  # create models for metric predictions
+  modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
+    
+    # log
+    sink('log.txt')
+    cat(rw, 'of', nrow(tomod), '\n')
+    print(Sys.time()-strt)
+    sink()
+    
+    # get index selections
+    var <- tomod[rw, 'var']
+    mo <- tomod[rw, 'mo']
+    data <- tomod$data[[rw]]
+    
+    # import predicors for the var
+    impvars <- impvarsall %>% 
+      filter(var %in% !!var) %>% 
+      pull(impvars) %>% 
+      unlist
+    
+    # use only one fold
+    fld <- 1
+    
+    # calibration data
+    calset <- data %>%
+      filter(!folds %in% fld)
+    
+    # model formula, from top predictors
+    frmimp <- impvars %>%
+      paste(collapse = '+') %>%
+      paste0('val~', .) %>%
+      formula
+    
+    # create model, from top ten
+    modimp <- randomForest(frmimp, data = calset, ntree = 500, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
+    
+    # data to predict
+    toprd <- preddat[, impvars]
+    
+    # predictions, all comid attributes
+    prdimp <- predict(modimp, newdata = toprd, predict.all = T)
+    bnds <- apply(prdimp$individual, 1, function(x) quantile(x, probs = c(0.1, 0.9), na.rm = T))
+    cv <- apply(prdimp$individual, 1, function(x) sd(x, na.rm = T)/mean(x, na.rm = T))
+    
+    # combine output, estimates, lo, hi, cv, dataset
+    out <- tibble(
+      COMID = preddat$COMID,
+      dtsl = preddat$dtsl, 
+      est = prdimp$aggregate,
+      lov= bnds[1, ],
+      hiv= bnds[2, ],
+      cv = cv
+      ) %>%
+      mutate(set = ifelse(COMID %in% calset$COMID, 'cal', 'notcal'))
+    
+    # this is for obs bio, needs actual date column to output
+    if('date' %in% names(preddat))
+      out <- bind_cols(out, date = preddat$date)
+    
+    return(out)
+    
+  }
+  
+  # final output
+  flowmetest <- tomod %>%
+    dplyr::select(-data) %>%
+    bind_cols(., enframe(modsest)) %>%
+    dplyr::select(-name) %>%
+    unnest(value) 
+
+  return(flowmetest)
+  
+}

@@ -585,7 +585,7 @@ bioprecipmet <- biodatcomid %>%
 save(bioprecipmet, file = 'data/bioprecipmet.RData', compress = 'xz')
 
 
-# Predict flowmetrics where observed bio ----------------------------------
+# predict baseline flowmetrics where observed bio ----------------------------------
 # uses extracted precip metrics, static streamcat predictors
 # best predictors for rf models above
 
@@ -594,119 +594,14 @@ data(precipmet)
 data(flowmetprf)
 data(bioprecipmet)
 data(comid_attsall)
-data(comid_atts)
-
-# top predictors for each metric, july only
-# all important predictors across the five folds are combined
-impvarsall <- flowmetprf %>%
-  filter(mo %in% 7) %>%
-  filter(modtyp %in% 'prdimp') %>%
-  filter(set %in% 'val') %>%
-  dplyr::select(-data, -mo, -set, -modtyp, -rmse, -rsqr) %>%
-  group_by(var) %>%
-  nest %>%
-  mutate(
-    impvars = purrr::map(data, function(x) unique(unlist(x$impvars)))
-  ) %>%
-  dplyr::select(-data)
-
-# static predictors
-static <- comid_attsall %>%
-  st_set_geometry(NULL)
-
-# setup data to model
-tomod <- flowmet %>%
-  dplyr::select(-tenyr) %>% # do not model tenyr
-  mutate(
-    mo = month(date)
-  ) %>%
-  group_by(mo) %>% 
-  mutate(folds = sample(1:5, length(mo), replace = T)) %>%
-  ungroup %>%
-  filter(mo %in% 7) %>% 
-  gather('var', 'val', -watershedID, -COMID, -date, -mo, -folds) %>%
-  left_join(comid_atts, by = 'COMID') %>%
-  left_join(precipmet, by = c('COMID', 'date')) %>%
-  group_by(var, mo) %>%
-  nest
-
-# prediction data from bio precipmetrics
-# join with comid_atts_bio_nogm
-biopreddat <- bioprecipmet %>% 
-  left_join(static, by = 'COMID')
+data(biodat)
 
 # setup parallel
-ncores <- detectCores() - 1
+ncores <- detectCores() - 2
 cl<-makeCluster(ncores)
 registerDoParallel(cl)
-strt<-Sys.time()
 
-# create models for metric predictions
-modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
-  
-  # log
-  sink('log.txt')
-  cat(rw, 'of', nrow(tomod), '\n')
-  print(Sys.time()-strt)
-  sink()
-  
-  # get index selections
-  var <- tomod[rw, 'var']
-  mo <- tomod[rw, 'mo']
-  data <- tomod$data[[rw]]
-  
-  # import predicors for the var
-  impvars <- impvarsall %>% 
-    filter(var %in% !!var) %>% 
-    pull(impvars) %>% 
-    unlist
-  
-  # use only one fold
-  fld <- 1
-  
-  # calibration data
-  calset <- data %>%
-    filter(!folds %in% fld)
-  
-  # model formula, from top predictors
-  frmimp <- impvars %>%
-    paste(collapse = '+') %>%
-    paste0('val~', .) %>%
-    formula
-  
-  # create model, from top ten
-  modimp <- randomForest(frmimp, data = calset, ntree = 500, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
-  
-  # data to predict
-  toprd <- biopreddat[, impvars]
-  
-  # predictions, all comid attributes
-  prdimp <- predict(modimp, newdata = toprd, predict.all = T)
-  bnds <- apply(prdimp$individual, 1, function(x) quantile(x, probs = c(0.1, 0.9), na.rm = T))
-  cv <- apply(prdimp$individual, 1, function(x) sd(x, na.rm = T)/mean(x, na.rm = T))
-  
-  # combine output, estimates, lo, hi, cv, dataset
-  out <- tibble(
-    COMID = biopreddat$COMID,
-    date = biopreddat$date, 
-    dtsl = biopreddat$dtsl, 
-    est = prdimp$aggregate,
-    lov= bnds[1, ],
-    hiv= bnds[2, ],
-    cv = cv
-  ) %>%
-    mutate(set = ifelse(COMID %in% calset$COMID, 'cal', 'notcal'))
-  
-  return(out)
-  
-}
-
-# final output
-bioflowmetest <- tomod %>%
-  dplyr::select(-data) %>%
-  bind_cols(., enframe(modsest)) %>%
-  dplyr::select(-name) %>%
-  unnest(value) 
+bioflowmetest <- flowmetprd_fun(flowmet, precipmet, flowmetprf, bioprecipmet, comid_attsall)
 
 # join with biology (only date, COMID were modelled, species doesn't matter)
 bioflowmetest <- bioflowmetest %>% 
@@ -860,5 +755,24 @@ precipmet <- precipmet %>%
 bsprecipmet <- toproc %>% 
   left_join(precipmet, by = c('COMID', 'dtsl'))
 
-save(bsprecipmet, file = 'data/bseprecipmet.RData', compress = 'xz')
+save(bsprecipmet, file = 'data/bsprecipmet.RData', compress = 'xz')
+
+# predict baseline flowmetrics for selected years, all COMID --------------
+# uses extracted precip metrics from all comid, static streamcat predictors
+# best predictors for rf models above
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(bsprecipmet)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+bsflowmetest <- flowmetprd_fun(flowmet, precipmet, flowmetprf, bsprecipmet, comid_attsall)
+
+save(bsflowmetest, file = 'data/bsflowmetest.RData', compress = 'xz')
 
