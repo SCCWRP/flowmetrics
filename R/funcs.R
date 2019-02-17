@@ -10,7 +10,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
 
   # check arg  
   subnm <- match.arg(subnm)
-  
+
   if(subnm == 'all' & any(duplicated(id)))
     stop('no duplicated id values of subnm = "all"')
 
@@ -771,12 +771,13 @@ strm_fun <- function(q, sites){
           pull(flow)
         
         # get magniude of storm types
-        tenyr <- mean(pks[1:3])
+        # tenyr <- mean(pks[1:3])
         fivyr <- mean(pks[4:9])
         twoyr <- mean(pks[10:24])
         
         # format output
-        out <- data.frame(tenyr = tenyr, fivyr = fivyr, twoyr = twoyr)
+        # out <- data.frame(tenyr = tenyr, fivyr = fivyr, twoyr = twoyr)
+        out <- data.frame(fivyr = fivyr, twoyr = twoyr)
         
         return(out)
         
@@ -1041,7 +1042,7 @@ simextract_fun <- function(fls, comid_pnts){
   # reproject points for extraction
   comid_sel <- comid_pnts %>% 
     st_transform(decprj)
-  
+
   # lat and lon bounding box for h5 files
   lats <- c(33.5, 35.01101)
   lons <- c(-119.70, -117.37)
@@ -1099,5 +1100,147 @@ simextract_fun <- function(fls, comid_pnts){
     dplyr::select(date, COMID, dly_prp)
   
   return(ext)
+  
+}
+
+#' konrad metric estimates but in batch
+#'
+#' @ ID numeric vector of COMID 
+#' @ dtsls dates where metrics are estimated
+#' @ precipext extracted daily precipitation time series at each COMID
+#'   
+konrad_funbtch <- function(ID, dtsls, precipext){
+  
+  # log
+  strt <- Sys.time()
+
+  # estimate konrad
+  res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate'), .export = c('ID', 'dtsls', 'precipext')) %dopar% {
+    
+    source('R/funcs.R')
+    
+    IDin <- ID
+    if(i == 'all')
+      IDin <- unique(IDin)
+
+    out <- konradfun(id = IDin, flowin = precipext, dtend = dtsls, subnm = i)
+    return(out)
+    
+  }
+  
+  print(Sys.time() - strt)
+  
+  kradprecipmet <- do.call('rbind', res) %>%
+    rename(COMID = stid)
+  
+  return(kradprecipmet)
+  
+}
+
+#' additional metric estimates but in batch
+#'
+#' @ ID numeric vector of COMID 
+#' @ dtsls dates where metrics are estimated
+#' @ precipext extracted daily precipitation time series at each COMID
+#' 
+addlmet_funbtch <- function(ID, dtsls, precipext){
+  
+  ##
+  # estimate additional metrics, not Konrad
+  
+  # log
+  strt <- Sys.time()
+  
+  #prep site file data, ~2 hrs
+  res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+    
+    if(i == 'all')
+      ID <- unique(ID)
+    source('R/funcs.R')
+    out <- addlmet_fun(id = ID, flowin = precipext, dtend = dtsls, subnm = i)
+    return(out)
+    
+  }
+  
+  print(Sys.time() - strt)
+  
+  addlprecipmet <- do.call('rbind', res) %>%
+    rename(COMID = stid)
+  
+  return(addlprecipmet)
+  
+}
+
+#' Combine metric output from konrad_funbtch, addlmet_funbtch
+#' 
+#' @param kradprecipmet konrad ouput from konrad_funbtch
+#' @param addlprecipmet additional metric output from addlmet_funbtch
+#' @param enddt the end date in the time series
+#' 
+precipcmb_fun <- function(kradprecipmet, addlprecipmet, enddt = '2014-09-30'){
+  
+  ##
+  # combine additional metrics and filter out extra stuff
+  
+  precipmet <- rbind(kradprecipmet, addlprecipmet)
+  
+  flomeans <- precipmet %>%
+    filter(met %in% c('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')) %>%
+    filter(ktype %in% c('all', 'x3'))  %>%
+    dplyr::select(-ktype)
+  
+  strms <- precipmet %>%
+    filter(met %in% c('twoyr', 'fivyr', 'tenyr')) %>%
+    filter(ktype %in% c('all', 'x3'))  %>%
+    dplyr::select(-ktype)
+  
+  rbi <- precipmet %>%
+    filter(grepl('RBI|rbi', met)) %>%
+    filter(ktype %in% c('all', 'x3')) %>%
+    mutate(
+      met = gsub('yr', '_', met),
+      met = ifelse(grepl('\\_', met), paste0('x', met), met)
+    ) %>%
+    dplyr::select(-ktype)
+  
+  # remove flo means, storm events, rbi because above used instead
+  # make complete cases to fill 'all' metrics to start dates (must do sperately for COMID because of different dates)
+  # remove R10 metrics from Konrad, didnt process
+  precipmet <- precipmet %>%
+    filter(!met %in% c('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')) %>%
+    filter(!met %in% c('twoyr', 'fivyr', 'tenyr')) %>%
+    filter(!grepl('RBI|rbi', met)) %>%
+    unite('met', ktype, met, sep = '_') %>%
+    bind_rows(flomeans, strms, rbi) %>%
+    group_by(COMID) %>%
+    nest %>%
+    mutate(
+      data = purrr::map(data, function(x){
+        
+        out <- x %>% 
+          complete(date, met) %>% 
+          group_by(met) %>% 
+          mutate(
+            val = ifelse(grepl('^all', met), na.omit(val), val)
+          ) %>% 
+          filter(!date %in% as.Date(enddt)) %>%  # placeholder date from all metrics
+          na.omit %>%
+          # unique %>% 
+          spread(met, val)
+        
+        return(out)
+        
+      })
+    ) %>% 
+    mutate(
+      COMID = as.numeric(COMID)
+    ) %>%
+    ungroup %>% 
+    unnest %>% 
+    rename(
+      dtsl = date
+    )
+  
+  return(precipmet)
   
 }
