@@ -153,6 +153,11 @@ save(bsext, file = 'data/bsext.RData', compress = 'xz')
 # get precipitation metrics at quarterly intervals  -----------------------
 # this is done using extracted sim data, used for rf models below
 
+
+# this is my new section --------------------------------------------------
+
+
+
 ##
 # estimate Konrad metrics from extracted precip data above
 
@@ -776,3 +781,58 @@ bsflowmetest <- flowmetprd_fun(flowmet, precipmet, flowmetprf, bsprecipmet, comi
 
 save(bsflowmetest, file = 'data/bsflowmetest.RData', compress = 'xz')
 
+
+# extract future precip predictions from simulated data -------------------
+
+data(comid_pnts)
+
+##
+# CanESM2 extraction
+
+# get recursive file list, daily for 2200 - 2040, 2082 - 2100, book ends on july 1st
+fls <- list.files('//172.16.1.198/SShare1/Forcing/PPT/CanESM2/rcp85/', recursive = T, full.names = T) 
+inds <- grep('\\_20220701|\\_20400701|\\_20820701|\\_21000701', fls)
+fls <- fls[c(inds[1]:inds[2], inds[3]:inds[4])]
+
+# setup parallel backend
+ncores <- detectCores() - 1  
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+CanESM2ext <- simextract_fun(fls, comid_pnts)
+
+save(CanESM2ext, file = 'data/CanESM2ext.RData', compress = 'xz')
+
+##
+# CCSM4 extraction
+
+# get recursive file list, daily for 2200 - 2040, 2082 - 2100, book ends on july 1st
+fls <- list.files('//172.16.1.198/SShare1/Forcing/PPT/CCSM4/rcp85/', recursive = T, full.names = T) 
+inds <- grep('\\_20220701|\\_20400701|\\_20820701|\\_21000701', fls)
+fls <- fls[c(inds[1]:inds[2], inds[3]:inds[4])]
+
+# setup parallel backend
+ncores <- detectCores() - 1  
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+CCSM4ext <- simextract_fun(fls, comid_pnts)
+
+save(CCSM4ext, file = 'data/CCSM4ext.RData', compress = 'xz')
+
+##
+# MIROC5 extraction
+
+# get recursive file list, daily for 2200 - 2040, 2082 - 2100, book ends on july 1st
+fls <- list.files('//172.16.1.198/SShare1/Forcing/PPT/MIROC5/rcp85/', recursive = T, full.names = T) 
+inds <- grep('\\_20220701|\\_20400701|\\_20820701|\\_21000701', fls)
+fls <- fls[c(inds[1]:inds[2], inds[3]:inds[4])]
+
+# setup parallel backend
+ncores <- detectCores() - 1  
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+MIROC5ext <- simextract_fun(fls, comid_pnts)
+
+save(MIROC5ext, file = 'data/MIROC5ext.RData', compress = 'xz')

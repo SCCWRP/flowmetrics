@@ -1023,3 +1023,81 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
   return(flowmetest)
   
 }
+
+######
+#' extract simulated precipitation data at lat/lon points from input file list
+#' extraction file list is where h5 files live
+#' 
+#' @param fls input file chr vector for location of h5 files, full paths
+#' @param comid_pnts sf point object of locations to extract daily precip estimates
+#' 
+#' @details can be run in parallel
+#' 
+simextract_fun <- function(fls, comid_pnts){
+  
+  # geographic projection
+  decprj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+  
+  # reproject points for extraction
+  comid_sel <- comid_pnts %>% 
+    st_transform(decprj)
+  
+  # lat and lon bounding box for h5 files
+  lats <- c(33.5, 35.01101)
+  lons <- c(-119.70, -117.37)
+
+  # for log
+  strt<-Sys.time()
+  
+  # process
+  res <- foreach(i = seq_along(fls), .packages = c('tidyverse', 'sf', 'raster', 'h5')) %dopar% {
+    
+    # log
+    sink('log.txt')
+    cat(i, 'of', length(fls), '\n')
+    print(Sys.time()-strt)
+    sink()
+    
+    # select one h5 file, open connection
+    h5flcon <- h5file(name = fls[i], mode = "r")
+
+    # read dataset, 8(3hr) x 1600 x 2400
+    # rearrange rows, get in correct order for array
+    # make raster brick
+    ppt <- readDataSet(h5flcon['PPT']) %>% 
+      .[, ncol(.):1, ] 
+    nr <- ncol(ppt)
+    nc <- dim(ppt)[3]
+    nz <- nrow(ppt)
+    ppt <- sapply(1:nrow(ppt), function(x) ppt[x, , ], simplify = F)
+    ppt <- array(unlist(ppt), dim = c(nr, nc, nz)) %>%
+      brick(xmn = lons[1], xmx = lons[2], ymn = lats[1], ymx = lats[2], crs = CRS(decprj))
+    
+    # extract three hour estimates for the day
+    # get daily total
+    dly <- ppt %>%  
+      raster::extract(comid_sel) %>% 
+      rowSums(na.rm = T) %>% 
+      tibble(COMID = comid_pnts$COMID, dly_prp = .)
+    
+    # close the connection
+    h5close(h5flcon)
+    
+    return(dly)
+    
+  }
+  
+  # combine output to save
+  names(res) <- basename(fls)
+  ext <- res %>% 
+    enframe %>% 
+    unnest %>% 
+    mutate(
+      date = gsub('^.*\\_([0-9]+)\\.h5$', '\\1', name),
+      date = lubridate::ymd(date)
+    ) %>% 
+    dplyr::select(date, COMID, dly_prp)
+  
+  return(ext)
+  
+}
