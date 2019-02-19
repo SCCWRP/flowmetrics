@@ -765,3 +765,455 @@ registerDoParallel(cl)
 MIROC5ext <- simextract_fun(fls, comid_pnts)
 
 save(MIROC5ext, file = 'data/MIROC5ext.RData', compress = 'xz')
+
+# canesm2dt1 extract precip mets ----------------------------------------------------------
+
+data(comid_pnts)
+data(CanESM2ext)
+
+# input
+toproc <- crossing(
+  dtsl = as.Date(c('2040-07-01')),
+  COMID = comid_pnts$COMID
+)
+ID <- toproc$COMID
+dtsls <- toproc$dtsl
+
+# subset precip daily time series by dates
+CanESM2ext_sub <- CanESM2ext %>%
+  filter(date <= max(dtsls))
+
+##
+# konrad
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+# estimate konrad
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID)
+  
+  out <- konradfun(id = ID, flowin = CanESM2ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+kradprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+##
+# addl precip metrics
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID) 
+  
+  out <- addlmet_fun(id = ID, flowin = CanESM2ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+addlprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+canesm2dt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+
+save(canesm2dt1, file = 'data/canesm2dt1.RData', compress = 'xz')
+
+# canesm2dt2 extract precip mets -------------------------------------------------------------
+
+data(comid_pnts)
+data(CanESM2ext)
+
+# input
+toproc <- crossing(
+  dtsl = as.Date(c('2100-07-01')),
+  COMID = comid_pnts$COMID
+)
+ID <- toproc$COMID
+dtsls <- toproc$dtsl
+
+# subset precip daily time series by dates
+CanESM2ext_sub <- CanESM2ext %>%
+  filter(date <= as.Date('2100-07-01') & date >= as.Date('2082-07-01'))
+
+##
+# konrad
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+# estimate konrad
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID)
+  
+  out <- konradfun(id = ID, flowin = CanESM2ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+kradprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+##
+# addl precip metrics
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID) 
+  
+  out <- addlmet_fun(id = ID, flowin = CanESM2ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+addlprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+canesm2dt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+
+save(canesm2dt2, file = 'data/canesm2dt2.RData', compress = 'xz')
+
+# ccsm4dt1 extract precip mets ----------------------------------------------------------------
+
+data(comid_pnts)
+data(CCSM4ext)
+
+# input
+toproc <- crossing(
+  dtsl = as.Date(c('2040-07-01')),
+  COMID = comid_pnts$COMID
+)
+ID <- toproc$COMID
+dtsls <- toproc$dtsl
+
+# subset precip daily time series by dates
+CCSM4ext_sub <- CCSM4ext %>%
+  filter(date <= as.Date('2040-07-01'))
+
+##
+# konrad
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+# estimate konrad
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID)
+  
+  out <- konradfun(id = ID, flowin = CCSM4ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+kradprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+##
+# addl precip metrics
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID) 
+  
+  out <- addlmet_fun(id = ID, flowin = CCSM4ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+addlprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+ccsm4extdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+
+save(ccsm4extdt1, file = 'data/ccsm4extdt1.RData', compress = 'xz')
+
+# ccsm4dt2 extract precip mets ----------------------------------------------------------------
+
+data(comid_pnts)
+data(CCSM4ext)
+
+# input
+toproc <- crossing(
+  dtsl = as.Date(c('2100-07-01')),
+  COMID = comid_pnts$COMID
+)
+ID <- toproc$COMID
+dtsls <- toproc$dtsl
+
+# subset precip daily time series by dates
+CCSM4ext_sub <- CCSM4ext %>%
+  filter(date <= as.Date('2100-07-01') & date >= as.Date('2082-07-01'))
+
+##
+# konrad
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+# estimate konrad
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID)
+  
+  out <- konradfun(id = ID, flowin = CCSM4ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+kradprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+##
+# addl precip metrics
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID) 
+  
+  out <- addlmet_fun(id = ID, flowin = CCSM4ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+addlprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+ccsm4extdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+
+save(ccsm4extdt2, file = 'data/ccsm4extdt2.RData', compress = 'xz')
+
+# miroc5dt1 extract precip mets ---------------------------------------------------------------
+
+data(comid_pnts)
+data(MIROC5ext)
+
+# input
+toproc <- crossing(
+  dtsl = as.Date(c('2040-07-01')),
+  COMID = comid_pnts$COMID
+)
+ID <- toproc$COMID
+dtsls <- toproc$dtsl
+
+# subset precip daily time series by dates
+MIROC5ext_sub <- MIROC5ext  %>%
+  filter(date <= as.Date('2040-07-01'))
+
+##
+# konrad
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+# estimate konrad
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID)
+  
+  out <- konradfun(id = ID, flowin = MIROC5ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+kradprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+##
+# addl precip metrics
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID) 
+  
+  out <- addlmet_fun(id = ID, flowin = MIROC5ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+addlprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+MIROC5extdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+
+save(MIROC5extdt1, file = 'data/MIROC5extdt1.RData', compress = 'xz')
+
+
+# miroc5dt2 extract precip mets ---------------------------------------------------------------
+
+data(comid_pnts)
+data(MIROC5ext)
+
+# input
+toproc <- crossing(
+  dtsl = as.Date(c('2100-07-01')),
+  COMID = comid_pnts$COMID
+)
+ID <- toproc$COMID
+dtsls <- toproc$dtsl
+
+# subset precip daily time series by dates
+MIROC5ext_sub <- MIROC5ext %>%
+  filter(date <= as.Date('2100-07-01') & date >= as.Date('2082-07-01'))
+
+##
+# konrad
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+# estimate konrad
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID)
+  
+  out <- konradfun(id = ID, flowin = MIROC5ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+kradprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+##
+# addl precip metrics
+
+# setup parallel backend
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# log
+strt <- Sys.time()
+
+#prep site file data, ~2 hrs
+res <- foreach(i = c('x3', 'x5', 'x10', 'all'), .packages = c('tidyverse', 'lubridate')) %dopar% {
+  
+  if(i == 'all')
+    ID <- unique(ID) 
+  
+  out <- addlmet_fun(id = ID, flowin = MIROC5ext_sub, dtend = dtsls, subnm = i)
+  return(out)
+  
+}
+
+print(Sys.time() - strt)
+
+addlprecipmet <- do.call('rbind', res) %>%
+  rename(COMID = stid)
+
+MIROC5extdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+
+save(MIROC5extdt2, file = 'data/MIROC5extdt2.RData', compress = 'xz')
+

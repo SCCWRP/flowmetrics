@@ -1171,13 +1171,13 @@ addlmet_funbtch <- function(ID, dtsls, precipext){
   
 }
 
-#' Combine metric output from konrad_funbtch, addlmet_funbtch
+#' Combine metric output from konrad_funbtch, addlmet_funbtch, only for future climate change predictions
 #' 
 #' @param kradprecipmet konrad ouput from konrad_funbtch
 #' @param addlprecipmet additional metric output from addlmet_funbtch
 #' @param enddt the end date in the time series
 #' 
-precipcmb_fun <- function(kradprecipmet, addlprecipmet, enddt = '2014-09-30'){
+precipcmb_fun <- function(kradprecipmet, addlprecipmet){
   
   ##
   # combine additional metrics and filter out extra stuff
@@ -1202,7 +1202,7 @@ precipcmb_fun <- function(kradprecipmet, addlprecipmet, enddt = '2014-09-30'){
       met = ifelse(grepl('\\_', met), paste0('x', met), met)
     ) %>%
     dplyr::select(-ktype)
-  
+
   # remove flo means, storm events, rbi because above used instead
   # make complete cases to fill 'all' metrics to start dates (must do sperately for COMID because of different dates)
   # remove R10 metrics from Konrad, didnt process
@@ -1216,16 +1216,16 @@ precipcmb_fun <- function(kradprecipmet, addlprecipmet, enddt = '2014-09-30'){
     nest %>%
     mutate(
       data = purrr::map(data, function(x){
-        
+    
         out <- x %>% 
           complete(date, met) %>% 
           group_by(met) %>% 
           mutate(
             val = ifelse(grepl('^all', met), na.omit(val), val)
           ) %>% 
-          filter(!date %in% as.Date(enddt)) %>%  # placeholder date from all metrics
-          na.omit %>%
-          # unique %>% 
+          # filter(!date %in% as.Date(enddt)) %>%  # placeholder date from all metrics
+          # na.omit %>%
+          unique %>%
           spread(met, val)
         
         return(out)
