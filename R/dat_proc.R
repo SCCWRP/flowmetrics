@@ -82,11 +82,6 @@ save(bsext, file = 'data/bsext.RData', compress = 'xz')
 # get precipitation metrics at quarterly intervals  -----------------------
 # this is done using extracted sim data, used for rf models below
 
-
-# this is my new section --------------------------------------------------
-
-
-
 ##
 # estimate Konrad metrics from extracted precip data above
 
@@ -517,7 +512,6 @@ bioprecipmet <- biodatcomid %>%
   left_join(precipmet, by = c('COMID', 'dtsl'))
 
 save(bioprecipmet, file = 'data/bioprecipmet.RData', compress = 'xz')
-
 
 # predict baseline flowmetrics where observed bio ----------------------------------
 # uses extracted precip metrics, static streamcat predictors
@@ -1137,9 +1131,9 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-MIROC5extdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+miroc5extdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(MIROC5extdt1, file = 'data/MIROC5extdt1.RData', compress = 'xz')
+save(miroc5extdt1, file = 'data/miroc5extdt1.RData', compress = 'xz')
 
 
 # miroc5dt2 extract precip mets ---------------------------------------------------------------
@@ -1213,7 +1207,7 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-MIROC5extdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+miroc5extdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(MIROC5extdt2, file = 'data/MIROC5extdt2.RData', compress = 'xz')
+save(miroc5extdt2, file = 'data/miroc5extdt2.RData', compress = 'xz')
 
