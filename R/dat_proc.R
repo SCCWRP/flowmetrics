@@ -831,9 +831,9 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-canesm2dt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+canesm2precdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(canesm2dt1, file = 'data/canesm2dt1.RData', compress = 'xz')
+save(canesm2precdt1, file = 'data/canesm2precdt1.RData', compress = 'xz')
 
 # canesm2dt2 extract precip mets -------------------------------------------------------------
 
@@ -906,9 +906,9 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-canesm2dt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+canesm2precdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(canesm2dt2, file = 'data/canesm2dt2.RData', compress = 'xz')
+save(canesm2precdt2, file = 'data/canesm2precdt2.RData', compress = 'xz')
 
 # ccsm4dt1 extract precip mets ----------------------------------------------------------------
 
@@ -981,9 +981,9 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-ccsm4extdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+ccsm4precdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(ccsm4extdt1, file = 'data/ccsm4extdt1.RData', compress = 'xz')
+save(ccsm4precdt1, file = 'data/ccsm4precdt1.RData', compress = 'xz')
 
 # ccsm4dt2 extract precip mets ----------------------------------------------------------------
 
@@ -1056,9 +1056,9 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-ccsm4extdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+ccsm4precdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(ccsm4extdt2, file = 'data/ccsm4extdt2.RData', compress = 'xz')
+save(ccsm4precdt2, file = 'data/ccsm4precdt2.RData', compress = 'xz')
 
 # miroc5dt1 extract precip mets ---------------------------------------------------------------
 
@@ -1131,9 +1131,9 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-miroc5extdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+miroc5precdt1 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(miroc5extdt1, file = 'data/miroc5extdt1.RData', compress = 'xz')
+save(miroc5precdt1, file = 'data/miroc5precdt1.RData', compress = 'xz')
 
 
 # miroc5dt2 extract precip mets ---------------------------------------------------------------
@@ -1207,7 +1207,7 @@ print(Sys.time() - strt)
 addlprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
 
-miroc5extdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
+miroc5precdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
-save(miroc5extdt2, file = 'data/miroc5extdt2.RData', compress = 'xz')
+save(miroc5precdt2, file = 'data/miroc5precdt2.RData', compress = 'xz')
 
