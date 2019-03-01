@@ -1211,3 +1211,105 @@ miroc5precdt2 <- precipcmb_fun(kradprecipmet, addlprecipmet)
 
 save(miroc5precdt2, file = 'data/miroc5precdt2.RData', compress = 'xz')
 
+
+# predict future flowmetrics for 2040, canesm2 ----------------------------
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(canesm2precdt1)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+canesm2flowmetdt1 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, canesm2precdt1, comid_attsall)
+
+save(canesm2flowmetdt1, file = 'data/canesm2flowmetdt1.RData', compress = 'xz')
+
+# predict future flowmetrics for 2100, canesm2 ----------------------------
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(canesm2precdt2)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+canesm2flowmetdt1 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, canesm2precdt2, comid_attsall)
+
+save(canesm2flowmetdt1, file = 'data/canesm2flowmetdt1.RData', compress = 'xz')
+
+# predict future flowmetrics for 2040, ccsm4 ----------------------------
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(ccsm4precdt1)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+ccsm4flowmetdt1 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, ccsm4precdt1, comid_attsall)
+
+save(ccsm4flowmetdt1, file = 'data/ccsm4flowmetdt1.RData', compress = 'xz')
+
+# predict future flowmetrics for 2100, ccsm4 ----------------------------
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(ccsm4precdt2)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+ccsm4flowmetdt2 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, ccsm4precdt2, comid_attsall)
+
+save(ccsm4flowmetdt2, file = 'data/ccsm4flowmetdt2.RData', compress = 'xz')
+
+# predict future flowmetrics for 2040, miroc5 ----------------------------
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(miroc5precdt1)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+miroc5flowmetdt1 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, miroc5precdt1, comid_attsall)
+
+save(miroc5flowmetdt1, file = 'data/miroc5flowmetdt1.RData', compress = 'xz')
+
+# predict future flowmetrics for 2100, miroc5 ----------------------------
+
+data(flowmet)
+data(precipmet)
+data(flowmetprf)
+data(miroc5precdt2)
+data(comid_attsall)
+
+# setup parallel
+ncores <- detectCores() - 2
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+miroc5flowmetdt2 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, miroc5precdt2, comid_attsall)
+
+save(miroc5flowmetdt2, file = 'data/miroc5flowmetdt2.RData', compress = 'xz')
