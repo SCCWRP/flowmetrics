@@ -18,11 +18,19 @@ Model performance: [https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd](https:/
 
 * `CanESM2ext.RData` daily precipitation time series for future years at all COMIDs under CanESM2 scenario
 
+* `canesm2flowmetdt1.RData` estimated flow metrics from rf models at all COMID for 2040 under CanESM2 scenario 
+
+* `canesm2flowmetdt2.RData` estimated flow metrics from rf models at all COMID for 2100 under CanESM2 scenario 
+
 * `canesm2precdt1.RData` calculated precipitation metrics at all COMID for 2040 under CanESM2 scenario 
 
 * `canesm2precdt2.RData` calculated precipitation metrics at all COMID for 2100 under CanESM2 scenario
 
 * `CCSM4ext.RData` daily precipitation time series for future years at all COMIDs under CCSM4 scenario
+
+* `ccsm4flowmetdt1.RData` estimated flow metrics from rf models at all COMID for 2040 under CCSM4 scenario 
+
+* `ccsm4flowmetdt2.RData` estimated flow metrics from rf models at all COMID for 2100 under CCSM4 scenario 
 
 * `ccsm4precdt1.RData` calculated precipitation metrics at all COMID for 2040 under CCSM4 scenario 
 
@@ -39,6 +47,10 @@ Model performance: [https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd](https:/
 * `flowmetprf.RData` Model performance for estimated flow metrics in `flowmet.RData`, nested tibble used as lookup for model fitting
 
 * `MIROC5ext.RData` daily precipitation time series for future years at all COMIDs under MIROC5 scenario
+
+* `miroc5flowmetdt1.RData` estimated flow metrics from rf models at all COMID for 2040 under MIROC5 scenario 
+
+* `miroc5flowmetdt2.RData` estimated flow metrics from rf models at all COMID for 2100 under MIROC5 scenario 
 
 * `MIROC5precdt1.RData` calculated precipitation metrics at all COMID for 2040 under MIROC5 scenario 
 

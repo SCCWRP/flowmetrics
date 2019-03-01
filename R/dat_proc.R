@@ -1242,9 +1242,9 @@ ncores <- detectCores() - 2
 cl<-makeCluster(ncores)
 registerDoParallel(cl)
 
-canesm2flowmetdt1 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, canesm2precdt2, comid_attsall)
+canesm2flowmetdt2 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, canesm2precdt2, comid_attsall)
 
-save(canesm2flowmetdt1, file = 'data/canesm2flowmetdt1.RData', compress = 'xz')
+save(canesm2flowmetdt2, file = 'data/canesm2flowmetdt2.RData', compress = 'xz')
 
 # predict future flowmetrics for 2040, ccsm4 ----------------------------
 
