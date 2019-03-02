@@ -923,6 +923,21 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
     ) %>%
     dplyr::select(-data)
   
+  # best model for each metric, july only
+  # based on avg rsq across folds for validation sets only
+  bstmods <- flowmetprf %>% 
+    filter(mo %in% 7) %>% 
+    filter(set %in% 'val') %>% 
+    group_by(var, modtyp) %>% 
+    summarise(rsqr = mean(rsqr, na.rm = T)) %>% 
+    filter(rsqr == max(rsqr)) %>% 
+    dplyr::select(-rsqr) %>% 
+    ungroup
+  
+  # join best mod type with imp variables
+  impvarsall <- impvarsall %>% 
+    left_join(bstmods, by = 'var')
+  
   # static predictors
   static <- comid_attsall %>%
     st_set_geometry(NULL)
@@ -965,10 +980,16 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
     mo <- tomod[rw, 'mo']
     data <- tomod$data[[rw]]
     
-    # import predicors for the var
+    # important predictors for the var
     impvars <- impvarsall %>% 
       filter(var %in% !!var) %>% 
       pull(impvars) %>% 
+      unlist
+    
+    # get the best performing model for the var (all or top preds)
+    modtyp <- impvarsall %>% 
+      filter(var %in% !!var) %>% 
+      pull(modtyp) %>% 
       unlist
     
     # use only one fold
@@ -978,20 +999,23 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
     calset <- data %>%
       filter(!folds %in% fld)
     
-    # model formula, from top predictors
-    frmimp <- impvars %>%
-      paste(collapse = '+') %>%
-      paste0('val~', .) %>%
-      formula
-    
+    # model formula, from top predictors or all 
+    if(modtyp == 'prd')
+      frmimp <- names(calset)[!names(calset) %in% c('watershedID', 'COMID', 'date', 'yr', 'var', 'folds', 'val', 'tenyr', 'geometry')] %>% 
+        paste(collapse = '+') %>% 
+        paste0('val~', .) %>% 
+        formula
+    if(modtyp == 'prdimp')
+      frmimp <- impvars %>%
+        paste(collapse = '+') %>%
+        paste0('val~', .) %>%
+        formula
+
     # create model, from top ten
     modimp <- randomForest(frmimp, data = calset, ntree = 500, importance = TRUE, na.action = na.omit, keep.inbag = TRUE)
     
-    # data to predict
-    toprd <- preddat[, impvars]
-    
     # predictions, all comid attributes
-    prdimp <- predict(modimp, newdata = toprd, predict.all = T)
+    prdimp <- predict(modimp, newdata = preddat, predict.all = T)
     bnds <- apply(prdimp$individual, 1, function(x) quantile(x, probs = c(0.1, 0.9), na.rm = T))
     cv <- apply(prdimp$individual, 1, function(x) sd(x, na.rm = T)/mean(x, na.rm = T))
     
