@@ -1001,12 +1001,12 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
     
     # model formula, from top predictors or all 
     if(modtyp == 'prd')
-      frmimp <- names(calset)[!names(calset) %in% c('watershedID', 'COMID', 'date', 'yr', 'var', 'folds', 'val', 'tenyr', 'geometry')] %>% 
+      frmimp <- names(calset)[!names(calset) %in% c('watershedID', 'COMID', 'date', 'yr', 'var', 'folds', 'val', 'tenyr', 'fivyr', 'geometry')] %>% 
         paste(collapse = '+') %>% 
         paste0('val~', .) %>% 
         formula
     if(modtyp == 'prdimp')
-      frmimp <- impvars %>%
+      frmimp <- impvars[!impvars %in% 'fivyr'] %>%
         paste(collapse = '+') %>%
         paste0('val~', .) %>%
         formula
