@@ -511,7 +511,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   qsum$MaxMonth=apply(cbind(1:num_sites_processed),1,function(x) match(qsum$MaxMonthQ[x],monthsum[x,,4]))
   qsum$MinMonth=apply(cbind(1:num_sites_processed),1,function(x) match(qsum$MinMonthQ[x],monthsum[x,,4]))
   
-  # combine output
+  # combinef output
   out <- cbind(sitefile_create, qsum) %>% 
     dplyr::select(-styr, -stmn, -stdy, -minyr, -mindays, -lowflowyear, -Site, -Years, -StartWY, -EndWY) %>% 
     unite('date', endmn, enddy, endyr, sep = '/') %>% 
@@ -750,15 +750,13 @@ strm_fun <- function(q, sites){
   
   # Time since last 2,5, and 10 year storms 
   # Calculate days from date of species observation to the most recent storm.
-  
-  #no need to rerun anything, just run code here
-  
+
   strmpks <- newdat %>%
     group_by(SITE) %>% 
     nest %>% 
     mutate(
       strms = map(data, function(x){
-        
+
         # get storm peaks
         pks <- x %>% 
           mutate(
@@ -770,82 +768,96 @@ strm_fun <- function(q, sites){
           arrange(-flow) %>% 
           pull(flow)
         
-        # get magniude of storm types
-        # tenyr <- mean(pks[1:3])
+        # get magnitude of storm types
+        tenyr <- mean(pks[1:3])
         fivyr <- mean(pks[4:9])
         twoyr <- mean(pks[10:24])
         
         # format output
-        # out <- data.frame(tenyr = tenyr, fivyr = fivyr, twoyr = twoyr)
-        out <- data.frame(fivyr = fivyr, twoyr = twoyr)
+        out <- data.frame(tenyr = tenyr, fivyr = fivyr, twoyr = twoyr)
+        # out <- data.frame(fivyr = fivyr, twoyr = twoyr)
         
         return(out)
         
       })
     ) %>% 
     dplyr::select(-data) %>% 
-    unnest %>% 
-    gather('strm', 'mags', -SITE) %>% 
+    mutate(SITE = as.numeric(SITE)) 
+
+  # daily flow estimates, nested
+  newdatnst <- newdat %>% 
+    dplyr::select(date, SITE, flow) %>% 
+    mutate(date = ymd(date)) %>% 
+    group_by(SITE) %>% 
+    nest %>% 
     mutate(SITE = as.numeric(SITE))
-  
+
+  # combine dates to count back to storm events, estimates for storm events, flow data
+  # nested format to count back 
   toiter <- sites %>% 
-    left_join(strmpks, by = 'SITE')
-  
-  final <- NULL
-  
-  for(i in 1:nrow(toiter)){
-    
-    # cat(i, '\n')
-    
-    # get row to evaluate
-    rw <- toiter[i, ]
-    site <- rw$SITE
-    strm <- rw$strm
-    
-    # date objects
-    dt <- paste(rw$endyr, rw$endmn, rw$enddy, sep = '-') %>% 
-      ymd
-    
-    # pull out flow for the station before and up to observation date
-    flows <- newdat %>% 
-      filter(SITE %in% site) %>% 
-      filter(date <= dt)
-    
-    if(strm == 'tenyr'){
-      
-      # find index when flow was above or equal to storm mag
-      strmind <- which(flows$flow >= rw$mags)[1]
-      
-    } else {
-      
-      magspri <- toiter[i - 1, 'mags']
-      
-      # find index when flow was above or equal to storm mag
-      strmind <- rev(which(flows$flow >= rw$mags & flows$flow < magspri))[1]
-      
-    }
-    
-    # if none found, NA, otherwise, count back number of days
-    if(is.na(strmind)) 
-      dys <- NA
-    else 
-      dys <- nrow(flows) - strmind
-    
-    # cat('\t', as.character(rw), '\n')
-    # cat('\t', as.character(flows[strmind, ]),'\n')
-    # cat('\t', dys, '\n')
-    
-    # append to output
-    final <- c(final, dys)
-    
-  }
+    mutate( 
+      dt = paste(endyr, endmn, enddy, sep = '-'),
+      dt = ymd(dt)
+    ) %>% 
+    group_by(SITE) %>% 
+    nest %>% 
+    left_join(strmpks, by = 'SITE') %>% 
+    left_join(newdatnst, by = 'SITE') %>% 
+    rename(
+      dts = data.x, 
+      flows = data.y
+    ) %>% 
+    mutate(
+      dys = purrr::pmap(list(dts, strms, flows), function(dts, strms, flows){
+
+          # categorize flow record by storm events
+          flowcat <- flows %>%
+            mutate(
+              flowcat = case_when(
+
+                flow >= strms[['tenyr']] ~ 'tenyr',
+                flow >= strms[['fivyr']] ~ 'fivyr',
+                flow >= strms[['twoyr']] ~ 'twoyr',
+                T ~ 'base'
+                
+              )
+            ) %>% 
+            dplyr::select(-flow)
+          
+          # get counts back in time for each date since a storm event
+          cnts <- dts %>% 
+            pull(dt) %>% 
+            enframe %>% 
+            group_by(value) %>% 
+            nest %>% 
+            mutate(
+              cnts = purrr::map(value, function(value){
+                
+                flowcatsub <- flowcat %>% 
+                  filter(date <= value) %>% 
+                  arrange(desc(date))
+                
+                tenyr <- which(flowcatsub$flowcat %in% 'tenyr')[1]
+                fivyr <- which(flowcatsub$flowcat %in% 'fivyr')[1]
+                twoyr <- which(flowcatsub$flowcat %in% 'twoyr')[1]
+                
+                out <- tibble(twoyr = twoyr, fivyr = fivyr, tenyr = tenyr)
+                
+                return(out)
+                
+              })
+            ) %>% 
+            dplyr::select(-data) %>% 
+            unnest
+          
+          return(cnts)
+        
+        })
+      ) 
   
   out <- toiter %>% 
-    mutate(
-      cnts = final
-    ) %>% 
-    dplyr::select(-mags) %>% 
-    spread(strm, cnts)
+    dplyr::select(-strms, -flows) %>% 
+    unnest(dts, dys)
   
   return(out)
   
@@ -868,13 +880,12 @@ addlmet_fun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', s
   sites <- inps$sites
 
   ##
-  # prcoess metrics
-
+  # process metrics
+  strm <- strm_fun(q, sites)
   mofl <- mofl_fun(q, sites)
   rbiyrs <- rbiyrs_fun(q, sites)
   rbiall <- rbiall_fun(q, sites)
-  strm <- strm_fun(q, sites)
-
+ 
   # combine output
   out <- strm %>% 
     full_join(rbiyrs, by = c("SITE", "endyr", "endmn", "enddy")) %>% 
