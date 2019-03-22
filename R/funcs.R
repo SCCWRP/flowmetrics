@@ -769,13 +769,12 @@ strm_fun <- function(q, sites){
           pull(flow)
         
         # get magnitude of storm types
-        tenyr <- mean(pks[1:3])
-        fivyr <- mean(pks[4:9])
-        twoyr <- mean(pks[10:24])
+        tenyr <- pks[3] #mean(pks[1:3])
+        fivyr <- pks[9] #mean(pks[4:9])
+        twoyr <- pks[24]#mean(pks[10:24])
         
         # format output
         out <- data.frame(tenyr = tenyr, fivyr = fivyr, twoyr = twoyr)
-        # out <- data.frame(fivyr = fivyr, twoyr = twoyr)
         
         return(out)
         
@@ -955,7 +954,6 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
   
   # setup data to model
   tomod <- obsflowmet %>%
-    dplyr::select(-tenyr) %>% # do not model tenyr
     mutate(
       mo = month(date)
     ) %>%
@@ -964,7 +962,7 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
     ungroup %>%
     filter(mo %in% 7) %>% 
     gather('var', 'val', -watershedID, -COMID, -date, -mo, -folds) %>%
-    left_join(comid_attsall, by = 'COMID') %>%
+    left_join(static, by = 'COMID') %>%
     left_join(trnprecipmet, by = c('COMID', 'date')) %>%
     group_by(var, mo) %>%
     nest
@@ -976,7 +974,7 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
   
   # for log
   strt <- Sys.time()
-  
+
   # create models for metric predictions
   modsest <- foreach(rw = 1:nrow(tomod), .packages = c('randomForest', 'tidyverse')) %dopar% {
     
@@ -1010,14 +1008,22 @@ flowmetprd_fun <- function(obsflowmet, trnprecipmet, flowmetprf, prdprecipmet, c
     calset <- data %>%
       filter(!folds %in% fld)
     
-    # model formula, from top predictors or all 
-    if(modtyp == 'prd')
-      frmimp <- names(calset)[!names(calset) %in% c('watershedID', 'COMID', 'date', 'yr', 'var', 'folds', 'val', 'tenyr', 'fivyr', 'geometry')] %>% 
+    # model formula, from top predictors or all with exception for tenyr 
+    if(modtyp == 'prd'){
+      
+      # all predictors, except tenyr if var is not tenyr
+      frmimp <- names(calset)[!names(calset) %in% c('watershedID', 'COMID', 'date', 'yr', 'var', 'folds', 'val', 'geometry')] 
+      if(var != 'tenyr')
+        frmimp <- frmimp[!frmimp %in% 'tenyr']
+      
+      frmimp <- frmimp %>% 
         paste(collapse = '+') %>% 
         paste0('val~', .) %>% 
         formula
+      
+    }
     if(modtyp == 'prdimp')
-      frmimp <- impvars[!impvars %in% 'fivyr'] %>%
+      frmimp <- impvars %>% 
         paste(collapse = '+') %>%
         paste0('val~', .) %>%
         formula
@@ -1089,7 +1095,7 @@ simextract_fun <- function(fls, comid_pnts){
   res <- foreach(i = seq_along(fls), .packages = c('tidyverse', 'sf', 'raster', 'h5')) %dopar% {
     
     # log
-    sink('log.txt')
+    sink('log.txt') 
     cat(i, 'of', length(fls), '\n')
     print(Sys.time()-strt)
     sink()
