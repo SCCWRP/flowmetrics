@@ -1,0 +1,92 @@
+---
+title: "Tables"
+output: 
+  bookdown::word_document2:
+    reference_docx: my_styles.docx
+urlcolor: blue
+link-citations: true
+---
+
+```{r message = F, warning = F, results = 'hide', echo = F}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
+
+library(tidyverse)
+library(kableExtra)
+library(lubridate)
+library(kableExtra)
+
+load(file = '../data/flowmetprf.RData')
+```
+
+```{r statvals, echo = F}
+
+# complete performance table
+dattaball <- flowmetprf %>% 
+  dplyr::select(-data, -impvars) %>% 
+  gather('prf', 'val', rmse, rsqr) %>% 
+  unite('prf', set, prf, sep = ' ') %>% 
+  mutate(val = round(val, 2)) %>% 
+  spread(prf, val) %>% 
+  arrange(var, mo, modtyp)
+
+# fold and moth averaged performance table
+dattabaggmo <- dattaball %>% 
+  filter(mo %in% 7) %>% 
+  gather('prf', 'val', `cal rmse`, `cal rsqr`, `val rmse`, `val rsqr`) %>% 
+  group_by(var, modtyp, prf) %>% 
+  summarise(val = mean(val, na.rm = T)) %>% 
+  group_by(var, modtyp, prf) %>% 
+  summarise(val = round(mean(val, na.rm = T), 2)) %>% 
+  spread(prf, val) %>% 
+  group_by(var) %>% 
+  filter(`val rsqr` == max(`val rsqr`) & !duplicated(`val rsqr`)) %>% 
+  ungroup %>% 
+  mutate(
+    var = case_when(
+      var %in% 'X3yrRBI' ~ 'x3_RBI',
+      var %in% 'X5yrRBI' ~ 'x5_RBI',
+      var %in% 'X10yrRBI' ~ 'x10_RBI',
+      var %in% 'rbi' ~ 'all_RBI',
+      T ~ var
+    )
+  ) %>% 
+  separate(var, c('splt', 'var'), sep = '_') %>% 
+  mutate(
+    var = ifelse(is.na(var), splt, var), 
+    splt = ifelse(splt %in% var, 'all', splt)
+  ) %>% 
+  dplyr::select(var, splt, modtyp, `cal rmse`, `val rmse`, `cal rsqr`, `val rsqr`) %>% 
+  group_by(var) %>% 
+  mutate(avg_rsqr = mean(`val rsqr`)) %>% 
+  mutate(
+    splt = factor(splt, levels = c('x3', 'x5', 'x10', 'all'), labels = c('3', '5', '10', 'all')),
+    modtyp = case_when(
+      modtyp %in% 'prd' ~ 'full', 
+      T ~ 'top 10'
+      )
+    ) %>% 
+  arrange(-avg_rsqr, var, splt) %>% 
+  group_by(var) %>% 
+  mutate(
+    avg_rsqr = as.character(round(avg_rsqr, 2)),
+    avg_rsqr = ifelse(!duplicated(avg_rsqr), avg_rsqr, '')
+    ) %>% 
+  ungroup %>% 
+  mutate(
+    var = ifelse(duplicated(var), '', var)
+    ) %>% 
+  rename(
+    `Flow Metric` = var,
+    `Time Frame` = splt,
+    `Predictors` = modtyp,
+    `Average validation R2` = avg_rsqr
+  )
+
+# table stuff
+cap.val <- 'Performance of random forest models for each flow metric and time frame.  Performance estimates are separated by calibration and validation data sets based on a random 3:1 split of the training data.  Performance is based on root mean squared error and R-squared values comparing observed and predicted flow metrics and is shown only for the July model.  The predictor column shows whether the full set of predictors or the top ten from the full model produced the best performance. Rows are arranged by r-squared values based on the average between time frames for the validation datasets.'
+
+# table
+knitr::kable(dattabaggmo, caption = cap.val)
+```
+
+
