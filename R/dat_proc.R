@@ -1492,3 +1492,35 @@ registerDoParallel(cl)
 miroc5flowmetdt2 <- flowmetprd_fun(flowmet, precipmet, flowmetprf, miroc5precdt2, comid_attsall)
 
 save(miroc5flowmetdt2, file = 'data/miroc5flowmetdt2.RData', compress = 'xz')
+
+# data for Rosi -----------------------------------------------------------
+
+# id column must be named COMID for extraction function
+pt_lyr <- st_read('Z:/JennyTaylor/Data for Rosi/FinalPts_1km.shp') %>% 
+  rename(COMID = Id)
+
+# get recursive file list, daily for each water year, subset by 2000 or later
+fls <- list.files('//172.16.1.198/SShare1/Forcing/PPT/Baseline', recursive = T, full.names = T) %>% 
+  grep('YR20', ., value = T)
+
+# setup parallel backend
+ncores <- detectCores() - 1
+cl<-makeCluster(ncores)
+registerDoParallel(cl)
+
+# extract h5 data
+tmp <- simextract_fun(fls, pt_lyr)
+
+# format output
+crds <- pt_lyr %>% 
+  st_set_geometry(NULL) %>% 
+  mutate(
+    UTM_X = st_coordinates(pt_lyr)[, 1],
+    UTM_Y = st_coordinates(pt_lyr)[, 2]
+  )
+
+bsgrdext <- tmp %>%
+  left_join(crds, by = 'COMID') %>% 
+  rename(Id = COMID)
+
+save(bsgrdext, file = 'data/bsgrdext.RData', compress = 'xz')
