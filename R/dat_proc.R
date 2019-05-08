@@ -1523,4 +1523,5 @@ bsgrdext <- tmp %>%
   left_join(crds, by = 'COMID') %>% 
   rename(Id = COMID)
 
+write.csv(bsgrdext, 'Z:/JennyTaylor/Data for Rosi/precip_extract.csv', row.names = F, quote = F)
 save(bsgrdext, file = 'data/bsgrdext.RData', compress = 'xz')
