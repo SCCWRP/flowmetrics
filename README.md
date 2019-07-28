@@ -1,5 +1,7 @@
 # README
 
+Application for exloring model performance of stream flow metrics for the LA/Ventura county region
+
 Model performance: [https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd](https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd)
 
 ## Data
