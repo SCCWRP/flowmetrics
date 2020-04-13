@@ -45,7 +45,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
     # for generic site file
     if(length(dtend) == 1){
       
-      dtstrt <- as.Date(dtstrt) %m+% years(yrfct)
+      dtstrt <- as.Date(dtstrt) #%m+% years(yrfct)
       dtend <- as.Date(dtend)
 
       # expand grid
@@ -56,7 +56,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
     } else {
 
       # need to filter ID, dtend by those in limits of flowin
-      mindt <- min(flowin$date) %m+% years(yrfct)
+      mindt <- min(flowin$date) #%m+% years(yrfct)
       ID <- ID[dtend >= mindt]
       dtend <- dtend[dtend >= mindt]
       
