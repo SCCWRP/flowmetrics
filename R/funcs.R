@@ -219,7 +219,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   daysinwy=daysinwy[dimnames(daysinwy)[[1]] %in% c(StartWY:EndWY), ]
   
   if(is.vector(daysinwy)) {daysinwy=rbind(daysinwy)}
-  
+
   wysinanalysis=mapply(function(x) t(daysinwy[,x]>=sites$mindays[x]),1:num_sites)
   wysinanalysis[wysinanalysis==0]=NA
   if(is.vector(wysinanalysis)) {wysinanalysis=rbind(wysinanalysis)}
@@ -228,7 +228,7 @@ konradfun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', sub
   num_sites_processed=sum(sites$processed)
   wysinanalysis=wysinanalysis[,sites$processed==1]
   if(is.vector(wysinanalysis)) {wysinanalysis=rbind(wysinanalysis)}
-  
+
   #FILTER ARRAY q FOR DAYS IN ANALYSIS
   q=q*days
   q=q[,sites$processed==1]
@@ -554,7 +554,7 @@ mofl_fun <- function(q, sites){
   # calculating monthly mean
   monthly_mean <- newdat %>% 
     group_by(SITE,year, month) %>% 
-    summarize(flow = mean(flow, na.rm = T))
+    summarize(flow = mean(flow, na.rm = T)) 
   
   out <- NULL  
   for (i in 1:nrow(sites)){
@@ -781,6 +781,7 @@ strm_fun <- function(q, sites){
       })
     ) %>% 
     dplyr::select(-data) %>% 
+    ungroup() %>% 
     mutate(SITE = as.numeric(SITE)) 
 
   # daily flow estimates, nested
@@ -789,6 +790,7 @@ strm_fun <- function(q, sites){
     mutate(date = ymd(date)) %>% 
     group_by(SITE) %>% 
     nest %>% 
+    ungroup() %>% 
     mutate(SITE = as.numeric(SITE))
 
   # combine dates to count back to storm events, estimates for storm events, flow data
@@ -847,7 +849,7 @@ strm_fun <- function(q, sites){
               })
             ) %>% 
             dplyr::select(-data) %>% 
-            unnest
+            unnest(cols = c(cnts))
           
           return(cnts)
         
@@ -871,7 +873,7 @@ strm_fun <- function(q, sites){
 #' @param dtend ending date, for sitefile_create, can be multiple
 #' @param subnm metric types as 3, 5, 10, or all years
 addlmet_fun <- function(id, flowin, dtstrt = '1982/10/1', dtend = '2014/9/30', subnm = c('x3', 'x5', 'x10', 'all')){
-  
+
   # get qin, sitefile from konrad
   subnm <- match.arg(subnm)
   inps <- konradfun(id = id, flowin = flowin, dtstrt = dtstrt, dtend = dtend, subnm = subnm, inps = T)
@@ -1219,11 +1221,11 @@ addlmet_funbtch <- function(ID, dtsls, precipext){
 #' @param enddt the end date in the time series
 #' 
 precipcmb_fun <- function(kradprecipmet, addlprecipmet){
-  
+
   ##
   # combine additional metrics and filter out extra stuff
   
-  precipmet <- rbind(kradprecipmet, addlprecipmet)
+  precipmet <- bind_rows(kradprecipmet, addlprecipmet)
   
   flomeans <- precipmet %>%
     filter(met %in% c('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')) %>%
@@ -1273,11 +1275,11 @@ precipcmb_fun <- function(kradprecipmet, addlprecipmet){
         
       })
     ) %>% 
+    ungroup() %>% 
     mutate(
       COMID = as.numeric(COMID)
-    ) %>%
-    ungroup %>% 
-    unnest %>% 
+    ) %>% 
+    unnest(cols = c(data)) %>% 
     rename(
       dtsl = date
     )

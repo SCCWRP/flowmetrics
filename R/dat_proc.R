@@ -1020,16 +1020,25 @@ data(comid_pnts)
 data(CanESM2ext)
 
 # input
+dtsl <- as.Date(c('2090-07-01', '2095-01-01', '2100-07-01'))
 toproc <- crossing(
-  dtsl = as.Date('2100-07-01'), #c('2090-07-01', '2095-01-01', '2100-07-01')),
+  dtsl = dtsl,
   COMID = comid_pnts$COMID
 )
 ID <- toproc$COMID
 dtsls <- toproc$dtsl
 
-# subset precip daily time series by dates
+# subset precip daily time series by dates and extend to two years prior to 2090 for x10
 CanESM2ext_sub <- CanESM2ext %>%
   filter(date <= as.Date('2100-07-01') & date >= as.Date('2082-07-01'))
+dts <- as.Date(c('2079-07-01', '2100-07-01'))
+dts <- seq(dts[1], dts[2], by = 'days')
+fl <- crossing(
+  date = dts, 
+  COMID = unique(CanESM2ext_sub$COMID)
+)
+CanESM2ext_sub <- fl %>% 
+  left_join(CanESM2ext_sub, by = c('date', 'COMID'))
 
 ##
 # konrad
@@ -1057,6 +1066,20 @@ print(Sys.time() - strt)
 
 kradprecipmet <- do.call('rbind', res) %>%
   rename(COMID = stid)
+
+# create 'all' ktype entries for 2090 and 2095
+allprecip <- kradprecipmet %>% 
+  filter(ktype %in% 'all') %>% 
+  dplyr::select(-date) %>% 
+  crossing(
+    date = dtsl, 
+    .
+  ) %>% 
+  dplyr::select(COMID, date, ktype, met, val)
+
+kradprecipmet <- kradprecipmet %>% 
+  filter(!ktype %in% 'all') %>% 
+  bind_rows(allprecip)
 
 ##
 # addl precip metrics
@@ -1170,16 +1193,25 @@ data(comid_pnts)
 data(CCSM4ext)
 
 # input
+dtsl <- as.Date(c('2090-07-01', '2095-01-01', '2100-07-01'))
 toproc <- crossing(
-  dtsl = as.Date(c('2100-07-01')),
+  dtsl = dtsl,
   COMID = comid_pnts$COMID
 )
 ID <- toproc$COMID
 dtsls <- toproc$dtsl
 
-# subset precip daily time series by dates
+# subset precip daily time series by dates and extend to two years prior to 2090 for x10
 CCSM4ext_sub <- CCSM4ext %>%
   filter(date <= as.Date('2100-07-01') & date >= as.Date('2082-07-01'))
+dts <- as.Date(c('2079-07-01', '2100-07-01'))
+dts <- seq(dts[1], dts[2], by = 'days')
+fl <- crossing(
+  date = dts, 
+  COMID = unique(CCSM4ext_sub$COMID)
+)
+CCSM4ext_sub <- fl %>% 
+  left_join(CCSM4ext_sub, by = c('date', 'COMID'))
 
 ##
 # konrad
@@ -1321,16 +1353,25 @@ data(comid_pnts)
 data(MIROC5ext)
 
 # input
+dtsl <- as.Date(c('2090-07-01', '2095-01-01', '2100-07-01'))
 toproc <- crossing(
-  dtsl = as.Date(c('2100-07-01')),
+  dtsl = dtsl,
   COMID = comid_pnts$COMID
 )
 ID <- toproc$COMID
 dtsls <- toproc$dtsl
 
-# subset precip daily time series by dates
+# subset precip daily time series by dates and extend to two years prior to 2090 for x10
 MIROC5ext_sub <- MIROC5ext %>%
   filter(date <= as.Date('2100-07-01') & date >= as.Date('2082-07-01'))
+dts <- as.Date(c('2079-07-01', '2100-07-01'))
+dts <- seq(dts[1], dts[2], by = 'days')
+fl <- crossing(
+  date = dts, 
+  COMID = unique(MIROC5ext_sub$COMID)
+)
+MIROC5ext_sub <- fl %>% 
+  left_join(MIROC5ext_sub, by = c('date', 'COMID'))
 
 ##
 # konrad
