@@ -701,12 +701,12 @@ rbiall_fun <- function(q, sites){
   sites<-sites[,c(1,5,6,7)]
   sites<-unique(sites)
   names(sites)[1]<-"SITE"
-  
+
   #not sure if this is right because stable streams were given high values and vice versa..
   out <- test %>% 
     gather("SITE","flow", -date, -month, -year) %>% 
     group_by(SITE) %>% 
-    summarize(rbi = sum(abs(diff(flow)))/sum(flow)) %>% 
+    summarize(rbi = sum(abs(diff(flow)), na.rm = T)/sum(flow, na.rm = T)) %>% 
     ungroup %>% 
     mutate(SITE = as.numeric(SITE))
   
