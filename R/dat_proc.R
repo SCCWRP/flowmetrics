@@ -9,7 +9,6 @@ library(doParallel)
 library(rnoaa)
 library(sf)
 library(randomForest)
-library(h5)
 library(raster)
 
 source('R/funcs.R')
