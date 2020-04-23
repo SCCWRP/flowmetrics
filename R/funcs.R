@@ -655,7 +655,7 @@ rbiyrs_fun <- function(q, sites){
         filter(date <= dt & date >= x) %>% 
         pull(flow) 
       
-      rbiout <- sum(abs(diff(flosel)))/sum(flosel)
+      rbiout <- sum(abs(diff(flosel)), na.rm = TRUE)/sum(flosel, na.rm = TRUE)
       
       # for zero flow
       if(is.nan(rbiout)) 
@@ -664,7 +664,7 @@ rbiyrs_fun <- function(q, sites){
       return(rbiout)
       
     })
-    
+
     final <- rbind(final, rbis)
     
   }
