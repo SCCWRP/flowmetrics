@@ -11,15 +11,74 @@ link-citations: true
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, fig.path = 'figs/')
 
 library(tidyverse)
-library(kableExtra)
 library(lubridate)
-library(kableExtra)
+library(here)
+library(sf)
 
-load(file = '../data/flowmetprf.RData')
+load(file = here('data', 'flowmetprf.RData'))
+load(file = here('data', 'comid_atts.RData'))
+load(file = here('data', 'precipmet.RData'))
 ```
 
-```{r statvals, echo = F}
+```{r topprd, echo = F, results = 'asis'}
+# dynamic predictor names
+precnms <- precipmet %>% 
+  dplyr::select(-COMID, -date) %>% 
+  names
 
+# static predictor names
+wshdnms <- comid_atts %>%
+  st_set_geometry(NULL) %>% 
+  dplyr::select(-COMID) %>% 
+  names
+
+# get top 3 predictors for each model in July, assign to precip or watershed, take random fold
+totab <- flowmetprf %>%
+  filter(mo %in% 7) %>%
+  filter(modtyp %in% 'prdimp') %>%
+  filter(set %in% 'val') %>%
+  filter(grepl('Q99$|LowDur$|SFR$|Hydroperiod$|HighNum$', var)) %>% 
+  group_by(var) %>%
+  sample_n(1) %>% 
+  dplyr::select(-data, -mo, -set, -modtyp, -rmse, -rsqr, -fld) %>%
+  mutate(
+    impvars = purrr::map(impvars, function(x){
+      
+      out <- data.frame(
+        rnk = 1:length(x),
+        vrs = x
+        ) %>% 
+        .[1:3, ]
+      
+      return(out)
+      
+    })
+  ) %>% 
+  unnest(impvars) %>% 
+  mutate(
+    vrtyp = case_when(
+      vrs %in% wshdnms ~ 'W', 
+      vrs %in% precnms ~ 'P'
+    ), 
+    vrtyp  = paste0(' (', vrtyp, ')')
+  ) %>% 
+  unite('vrs', vrs, vrtyp, sep = '') %>% 
+  ungroup %>% 
+  separate(var, c('Timeframe', 'Variable'), sep = '_') %>% 
+  spread(rnk, vrs) %>% 
+  mutate(
+    Timeframe = factor(Timeframe, levels = c('x3', 'x5', 'x10', 'all'), labels = c('3', '5', '10', 'all'))
+    ) %>% 
+  dplyr::select(Variable, Timeframe, everything()) %>% 
+  arrange(Variable, Timeframe) %>% 
+  mutate(Variable = ifelse(duplicated(Variable), '', Variable))
+
+cap.val <- 'Top three predictors (columns 1, 2, and 3) for each of five flow metrics separated by time frame.  The predictor type as watershed (W) or precipitation (P) is noted in parentheses.'
+
+knitr::kable(totab, caption = cap.val)
+```
+
+```{r statvals, echo = F, results = 'asis'}
 # complete performance table
 dattaball <- flowmetprf %>% 
   dplyr::select(-data, -impvars) %>% 
@@ -88,5 +147,3 @@ cap.val <- 'Performance of random forest models for each flow metric and time fr
 # table
 knitr::kable(dattabaggmo, caption = cap.val)
 ```
-
-
