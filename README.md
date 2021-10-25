@@ -63,3 +63,7 @@ Model performance: [https://sccwrp.shinyapps.io/flowmetrics/modests.Rmd](https:/
 * `MIROC5precdt2.RData` calculated precipitation metrics at all COMID for 2100 under MIROC5 scenario
 
 * `precipmet.RData` calculated precipitation metrics used to train rf models to predict observed flow metrics in `flowmetprf.RData`
+
+### Metadata
+Resources: <a href="https://ftp.sccwrp.org/pub/download/DOCUMENTS/TechnicalReports/1084_ClimateChangeVulnerability.pdf">report</a><br>
+Contact: <a href="https://www.sccwrp.org/about/staff/eric-stein/">Eric Stein</a>, <a href="mailto:jennyt@sccrwp.org">Jenny Taylor</a><br>
